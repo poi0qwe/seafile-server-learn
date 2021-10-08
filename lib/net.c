@@ -1,3 +1,5 @@
+/* 网络相关 */
+
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 #ifdef WIN32
     #define WINVER 0x0501
@@ -65,7 +67,7 @@ ccnet_netSetTOS (evutil_socket_t s, int tos)
 }
 
 static evutil_socket_t
-makeSocketNonBlocking (evutil_socket_t fd)
+makeSocketNonBlocking (evutil_socket_t fd) // 使socket非阻塞
 {
     if (fd >= 0)
     {
@@ -81,16 +83,16 @@ makeSocketNonBlocking (evutil_socket_t fd)
 }
 
 static evutil_socket_t
-createSocket (int family, int nonblock)
+createSocket (int family, int nonblock) // 创建socket
 {
     evutil_socket_t fd;
     int ret;
 
-    fd = socket (family, SOCK_STREAM, 0);
+    fd = socket (family, SOCK_STREAM, 0); // 创建面向连接socket
 
     if (fd < 0) {
         ccnet_warning("create Socket failed %d\n", fd);
-    } else if (nonblock) {
+    } else if (nonblock) { // 若非阻塞
         int nodelay = 1;
 
         fd = makeSocketNonBlocking( fd );
@@ -108,12 +110,12 @@ createSocket (int family, int nonblock)
 }
 
 evutil_socket_t
-ccnet_net_open_tcp (const struct sockaddr *sa, int nonblock)
+ccnet_net_open_tcp (const struct sockaddr *sa, int nonblock) // 作为tcp客户端，连接服务端
 {
     evutil_socket_t s;
     int sa_len;
 
-    if( (s = createSocket(sa->sa_family, nonblock)) < 0 )
+    if( (s = createSocket(sa->sa_family, nonblock)) < 0 ) // 创建
         return -1;
 
 #ifndef WIN32
@@ -129,7 +131,7 @@ ccnet_net_open_tcp (const struct sockaddr *sa, int nonblock)
 #endif
 
 
-    if( (connect(s, sa, sa_len) < 0)
+    if( (connect(s, sa, sa_len) < 0) // 连接
 #ifdef WIN32
         && (sockerrno != WSAEWOULDBLOCK)
 #endif
@@ -143,21 +145,22 @@ ccnet_net_open_tcp (const struct sockaddr *sa, int nonblock)
 }
 
 evutil_socket_t
-ccnet_net_bind_tcp (int port, int nonblock)
+ccnet_net_bind_tcp (int port, int nonblock) // 创建tcp服务端，绑定端口
 {
 #ifndef WIN32
     int sockfd, n;
     struct addrinfo hints, *res, *ressave;
     char buf[10];
         
-    memset (&hints, 0,sizeof (struct addrinfo));
-    hints.ai_flags = AI_PASSIVE;
+    memset (&hints, 0,sizeof (struct addrinfo)); // 期望返回的信息类型的暗示
+    hints.ai_flags = AI_PASSIVE; // 被动，表示服务器
     hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_socktype = SOCK_STREAM; // 面向连接
 
     snprintf (buf, sizeof(buf), "%d", port);
 
-    if ( (n = getaddrinfo(NULL, buf, &hints, &res) ) != 0) {
+    // https://man7.org/linux/man-pages/man3/getaddrinfo.3.html
+    if ( (n = getaddrinfo(NULL, buf, &hints, &res) ) != 0) { // 获取地址信息（第一个参数是ip地址，第二个参数是端口）
         ccnet_warning ("getaddrinfo fails: %s\n", gai_strerror(n));
         return -1;
     }
@@ -171,7 +174,7 @@ ccnet_net_bind_tcp (int port, int nonblock)
         if (sockfd < 0)
             continue;       /* error - try next one */
 
-		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0) {
+		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0) { // 设置参数
 			ccnet_warning ("setsockopt of SO_REUSEADDR error\n");
             continue;
         }
@@ -181,11 +184,11 @@ ccnet_net_bind_tcp (int port, int nonblock)
         if (sockfd < 0)
             continue;       /* error - try next one */
 
-        if (bind(sockfd, res->ai_addr, res->ai_addrlen) == 0)
+        if (bind(sockfd, res->ai_addr, res->ai_addrlen) == 0) // 绑定
             break;          /* success */
 
         close(sockfd);      /* bind error - close and try next one */
-    } while ( (res = res->ai_next) != NULL);
+    } while ( (res = res->ai_next) != NULL); // 对每个节点尝试绑定，直到成功
 
     freeaddrinfo (ressave);
 
@@ -229,7 +232,7 @@ ccnet_net_bind_tcp (int port, int nonblock)
 }
 
 int
-ccnet_net_make_socket_blocking(evutil_socket_t fd)
+ccnet_net_make_socket_blocking(evutil_socket_t fd) // 使socket变为阻塞式
 {
 #ifdef WIN32
 	{
@@ -257,12 +260,13 @@ ccnet_net_make_socket_blocking(evutil_socket_t fd)
 
 evutil_socket_t
 ccnet_net_accept (evutil_socket_t b, struct sockaddr_storage *cliaddr, 
-                  socklen_t *len, int nonblock)
+                  socklen_t *len, int nonblock) // tcp服务端接收连接；其中客户端地址信息被存储到cliaddr下
 {
     evutil_socket_t s;
     /* int nodelay = 1; */
-    
-    s = accept (b, (struct sockaddr *)cliaddr, len);
+
+    // https://man7.org/linux/man-pages/man2/accept.2.html
+    s = accept (b, (struct sockaddr *)cliaddr, len); // 提取队列中首个连接，阻不阻塞与选项有关
 
     /* setsockopt (s, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay)); */
     if (nonblock)
@@ -273,13 +277,13 @@ ccnet_net_accept (evutil_socket_t b, struct sockaddr_storage *cliaddr,
 
 
 evutil_socket_t
-ccnet_net_bind_v4 (const char *ipaddr, int *port)
+ccnet_net_bind_v4 (const char *ipaddr, int *port) // 作为tcp客户端，绑定ipv4地址
 {
     evutil_socket_t sockfd;
     struct sockaddr_in addr;
     int on = 1;
         
-    sockfd = socket (AF_INET, SOCK_STREAM, 0);
+    sockfd = socket (AF_INET, SOCK_STREAM, 0); // 面向连接
     if (sockfd < 0) {
         ccnet_warning("create socket failed: %s\n", strerror(errno));
         exit(-1);
@@ -287,26 +291,28 @@ ccnet_net_bind_v4 (const char *ipaddr, int *port)
 
     memset (&addr, 0, sizeof (struct sockaddr_in));
     addr.sin_family = AF_INET;
+    // https://man7.org/linux/man-pages/man3/inet_aton.3.html (ip转二进制，仅适用于ipv4)
     if (inet_aton(ipaddr, &addr.sin_addr) == 0) {
         ccnet_warning ("Bad ip address %s\n", ipaddr);
         return -1;
     }
+    // https://man7.org/linux/man-pages/man3/htons.3p.html （端口转二进制）
     addr.sin_port = htons (*port);
 
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) < 0)
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)) < 0) // 创建socket
     {
         ccnet_warning ("setsockopt of SO_REUSEADDR error: %s\n",
                        strerror(errno));
         return -1;
     }
 
-    if ( bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    if ( bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) { // 绑定
         ccnet_warning ("Bind error: %s\n", strerror (errno));
         return -1;
     }
 
 
-    if (*port == 0) {
+    if (*port == 0) { // 获取端口
         struct sockaddr_storage ss;
         socklen_t len;
 
@@ -324,7 +330,7 @@ ccnet_net_bind_v4 (const char *ipaddr, int *port)
 
 
 char *
-sock_ntop(const struct sockaddr *sa, socklen_t salen)
+sock_ntop(const struct sockaddr *sa, socklen_t salen) // 从socketaddr中提取ip，以字符串的形式返回
 {
     static char str[128];       /* Unix domain is largest */
 
@@ -372,7 +378,7 @@ sock_ntop(const struct sockaddr *sa, socklen_t salen)
 }
 
 int
-sock_pton (const char *addr_str, uint16_t port, struct sockaddr_storage *sa)
+sock_pton (const char *addr_str, uint16_t port, struct sockaddr_storage *sa) // ip + port -> socketaddr
 {
     struct sockaddr_in  *saddr  = (struct sockaddr_in *) sa;
 
@@ -399,18 +405,18 @@ sock_pton (const char *addr_str, uint16_t port, struct sockaddr_storage *sa)
 
 /* return 1 if addr_str is a valid ipv4 or ipv6 address */
 int
-is_valid_ipaddr (const char *addr_str)
+is_valid_ipaddr (const char *addr_str) // 判断ip是否有效
 {
     struct sockaddr_storage addr;
     if (!addr_str)
         return 0;
-    if (sock_pton(addr_str, 0, &addr) < 0)
+    if (sock_pton(addr_str, 0, &addr) < 0) // pton自带判断
         return 0;
     return 1;
 }
 
 uint16_t
-sock_port (const struct sockaddr *sa)
+sock_port (const struct sockaddr *sa) // 从socketaddr中提取端口，以int16的形式返回
 {
     switch (sa->sa_family) {
     case AF_INET: {
@@ -433,7 +439,7 @@ sock_port (const struct sockaddr *sa)
 
 evutil_socket_t
 udp_client (const char *host, const char *serv,
-            struct sockaddr **saptr, socklen_t *lenp)
+            struct sockaddr **saptr, socklen_t *lenp) // 作为udp客户端，绑定一个udp端口
 {
 	evutil_socket_t sockfd;
     int n;
@@ -441,9 +447,9 @@ udp_client (const char *host, const char *serv,
 
 	memset (&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_socktype = SOCK_DGRAM; // 无连接
 
-	if ((n = getaddrinfo(host, serv, &hints, &res)) != 0) {
+	if ((n = getaddrinfo(host, serv, &hints, &res)) != 0) { // 获取host:serv地址信息
         ccnet_warning ("udp_client error for %s, %s: %s",
                        host, serv, gai_strerror(n));
         return -1;
@@ -473,7 +479,7 @@ udp_client (const char *host, const char *serv,
 
 
 int
-family_to_level(int family)
+family_to_level(int family) // 根据family获取级别
 {
 	switch (family) {
 	case AF_INET:
@@ -562,7 +568,7 @@ create_multicast_sock (struct sockaddr *sasend, socklen_t salen)
 #else
 static int
 mcast_join(evutil_socket_t sockfd, const struct sockaddr *grp, socklen_t grplen,
-		   const char *ifname, u_int ifindex)
+		   const char *ifname, u_int ifindex) // 加入多播组
 {
 #if (defined MCAST_JOIN_GROUP) && (! defined __APPLE__)
 	struct group_req req;
@@ -586,7 +592,7 @@ mcast_join(evutil_socket_t sockfd, const struct sockaddr *grp, socklen_t grplen,
 /* end mcast_join1 */
 
 /* include mcast_join2 */
-	switch (grp->sa_family) {
+	switch (grp->sa_family) { // ipv4
 	case AF_INET: {
 		struct ip_mreq		mreq;
 		struct ifreq		ifreq;
@@ -612,13 +618,13 @@ doioctl:
 		} else
 			mreq.imr_interface.s_addr = htonl(INADDR_ANY);
 
-		return(setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+		return(setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, // 加入多播组
 						  &mreq, sizeof(mreq)));
 	}
 /* end mcast_join2 */
 
 /* include mcast_join3 */
-#ifdef	IPV6
+#ifdef	IPV6 // ipv6
 #ifndef	IPV6_JOIN_GROUP		/* APIv0 compatibility */
 #define	IPV6_JOIN_GROUP		IPV6_ADD_MEMBERSHIP
 #endif
@@ -654,25 +660,25 @@ doioctl:
 }
 
 evutil_socket_t
-create_multicast_sock (struct sockaddr *sasend, socklen_t salen)
+create_multicast_sock (struct sockaddr *sasend, socklen_t salen) // 创建多播socket
 {
     int                 ret;
     const int           on = 1;
     evutil_socket_t     recvfd;
     struct sockaddr    *sarecv;
 
-    if ( (recvfd = socket (sasend->sa_family, SOCK_DGRAM, 0)) < 0) {
+    if ( (recvfd = socket (sasend->sa_family, SOCK_DGRAM, 0)) < 0) { // 创建无连接socket
         ccnet_warning ("Create multicast listen socket fails: %s\n",
                      strerror(errno));
         return -1;
     }
-    ret = setsockopt(recvfd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on));
+    ret = setsockopt(recvfd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on)); // 可重用地址
     if (ret < 0)
         ccnet_warning("Failed to setsockopt SO_REUSEADDR\n");
     sarecv = malloc(salen);
     memcpy(sarecv, sasend, salen);
 
-    if (bind(recvfd, sarecv, salen) < 0) {
+    if (bind(recvfd, sarecv, salen) < 0) { // 绑定地址
         ccnet_warning ("Bind multicast listen socket fails: %s\n",
                        strerror(errno));
         free (sarecv);
@@ -680,7 +686,7 @@ create_multicast_sock (struct sockaddr *sasend, socklen_t salen)
     }
     free (sarecv);
 
-    if (mcast_join(recvfd, sasend, salen, NULL, 0) < 0) {
+    if (mcast_join(recvfd, sasend, salen, NULL, 0) < 0) { // 加入多播组
         ccnet_warning ("mcast_join error: %s\n", strerror(errno));
         return -1;
     }
@@ -691,7 +697,7 @@ create_multicast_sock (struct sockaddr *sasend, socklen_t salen)
 #endif
 
 int
-sockfd_to_family(evutil_socket_t sockfd)
+sockfd_to_family(evutil_socket_t sockfd) // 获取socket的family
 {
 	struct sockaddr_storage ss;
 	socklen_t	len;
@@ -703,20 +709,20 @@ sockfd_to_family(evutil_socket_t sockfd)
 }
 
 int
-mcast_set_loop(evutil_socket_t sockfd, int onoff)
+mcast_set_loop(evutil_socket_t sockfd, int onoff) // 设置多播循环
 {
 #ifndef WIN32
 
 	switch (sockfd_to_family(sockfd)) {
-	case AF_INET: {
+	case AF_INET: { // ipv4
 		u_char		flag;
 
 		flag = onoff;
-		return(setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_LOOP,
+		return(setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, // 多播循环
 						  &flag, sizeof(flag)));
 	}
 
-#ifdef	IPV6
+#ifdef	IPV6 // ipv6
 	case AF_INET6: {
 		u_int		flag;
 

@@ -1,3 +1,4 @@
+/* 头文件引用、消息宏、debug宏 */
 
 #include <config.h>
 #include <stdint.h>

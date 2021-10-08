@@ -1,6 +1,7 @@
 #!/bin/bash
 # Run this to generate all the initial makefiles, etc.
 
+# 前置软件
 : ${AUTOCONF=autoconf}
 : ${AUTOHEADER=autoheader}
 : ${AUTOMAKE=automake}
@@ -13,11 +14,13 @@ fi
 : ${INTLTOOLIZE=intltoolize}
 : ${LIBTOOL=libtool}
 
-srcdir=`dirname $0`
-test -z "$srcdir" && srcdir=.
 
-ORIGDIR=`pwd`
-cd $srcdir
+# 进入目录
+srcdir=`dirname $0` # 令src为当前shell文件所在的目录
+test -z "$srcdir" && srcdir=. # 如果srcdir为空，则令srcdir=.(当前文件夹)
+
+ORIGDIR=`pwd` # 暂存当前工作目录
+cd $srcdir # 进入当前工作目录
 PROJECT=ccnet
 TEST_TYPE=-f
 FILE=net/main.c
@@ -25,6 +28,7 @@ CONFIGURE=configure.ac
 
 DIE=0
 
+# 前置检测
 ($AUTOCONF --version) < /dev/null > /dev/null 2>&1 || {
 	echo
 	echo "You must have autoconf installed to compile $PROJECT."
@@ -87,10 +91,13 @@ if grep "^AM_[A-Z0-9_]\{1,\}_GETTEXT" "$CONFIGURE" >/dev/null; then
   fi
 fi
 
+# 前置检测失败，退出
 if test "$DIE" -eq 1; then
 	exit 1
 fi
 
+
+# 生成GNU配置
 dr=`dirname .`
 echo processing $dr
 aclocalinclude="$aclocalinclude -I m4"
@@ -101,7 +108,8 @@ elif test "$(uname)" = "Darwin"; then
     aclocalinclude="$aclocalinclude -I /opt/local/share/aclocal"
 fi
 
-
+# 编译
+# 1. 编译为m4文件
 echo "Creating $dr/aclocal.m4 ..."
 test -r $dr/aclocal.m4 || touch $dr/aclocal.m4
 echo "Running glib-gettextize...  Ignore non-fatal messages."
@@ -110,12 +118,15 @@ echo "no" | glib-gettextize --force --copy
 echo "Making $dr/aclocal.m4 writable ..."
 test -r $dr/aclocal.m4 && chmod u+w $dr/aclocal.m4
 
+# 2. 国际化工具
 echo "Running intltoolize..."
 intltoolize --copy --force --automake
 
+# 3. 通用库工具
 echo "Running $LIBTOOLIZE..."
 $LIBTOOLIZE --force --copy
 
+# 4. 开始编译
 echo "Running $ACLOCAL $aclocalinclude ..."
 $ACLOCAL $aclocalinclude
 
@@ -125,5 +136,6 @@ $AUTOHEADER
 echo "Running $AUTOMAKE --gnu $am_opt ..."
 $AUTOMAKE --add-missing --gnu $am_opt
 
+# 5. 自动配置
 echo "Running $AUTOCONF ..."
 $AUTOCONF

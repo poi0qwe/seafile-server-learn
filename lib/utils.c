@@ -1,4 +1,5 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* 实用封装 (对系统和依赖库的接口做了本地化处理) */
 
 #include <config.h>
 
@@ -56,34 +57,34 @@
 
 #include <zlib.h>
 
-extern int inet_pton(int af, const char *src, void *dst);
+extern int inet_pton(int af, const char *src, void *dst); // 点分IP转字节序
 
 
 struct timeval
-timeval_from_msec (uint64_t milliseconds)
+timeval_from_msec (uint64_t milliseconds) // ms转timeval
 {
-    struct timeval ret;
-    const uint64_t microseconds = milliseconds * 1000;
-    ret.tv_sec  = microseconds / 1000000;
-    ret.tv_usec = microseconds % 1000000;
+    struct timeval ret; // timeval { sec, usec }
+    const uint64_t microseconds = milliseconds * 1000; // 先得到微秒
+    ret.tv_sec  = microseconds / 1000000; // 然后转秒
+    ret.tv_usec = microseconds % 1000000; // 余数的微秒数
     return ret;
 }
 
 void
-rawdata_to_hex (const unsigned char *rawdata, char *hex_str, int n_bytes)
+rawdata_to_hex (const unsigned char *rawdata, char *hex_str, int n_bytes) // 将原始字符串转化为HEX字符串（8-bit -> 4-bit）
 {
     static const char hex[] = "0123456789abcdef";
     int i;
 
     for (i = 0; i < n_bytes; i++) {
-        unsigned int val = *rawdata++;
-        *hex_str++ = hex[val >> 4];
-        *hex_str++ = hex[val & 0xf];
+        unsigned int val = *rawdata++; // rawdata中是8位char
+        *hex_str++ = hex[val >> 4]; // 得到高四位，并移动指针
+        *hex_str++ = hex[val & 0xf]; // 得到低四位，并移动指针
     }
     *hex_str = '\0';
 }
 
-static unsigned hexval(char c)
+static unsigned hexval(char c) // 获取HEX的整数值
 {
     if (c >= '0' && c <= '9')
         return c - '0';
@@ -91,39 +92,39 @@ static unsigned hexval(char c)
         return c - 'a' + 10;
     if (c >= 'A' && c <= 'F')
         return c - 'A' + 10;
-    return ~0;
+    return ~0; // 11111111，表示无效
 }
 
 int
-hex_to_rawdata (const char *hex_str, unsigned char *rawdata, int n_bytes)
+hex_to_rawdata (const char *hex_str, unsigned char *rawdata, int n_bytes) // 将HEX字符串转原始字符串（4-bit -> 8-bit）
 {
     int i;
     for (i = 0; i < n_bytes; i++) {
-        unsigned int val = (hexval(hex_str[0]) << 4) | hexval(hex_str[1]);
-        if (val & ~0xff)
+        unsigned int val = (hexval(hex_str[0]) << 4) | hexval(hex_str[1]); // 将两个4四位连接成八位
+        if (val & ~0xff) // 结果高于八位，则无效（因为unsigned int是32位的）
             return -1;
         *rawdata++ = val;
-        hex_str += 2;
+        hex_str += 2; // 移动指针
     }
     return 0;
 }
 
 size_t
-ccnet_strlcpy (char *dest, const char *src, size_t size)
+ccnet_strlcpy (char *dest, const char *src, size_t size) // 复制字符串，仅复制前min(size, len)个字符
 {
-    size_t ret = strlen(src);
+    size_t ret = strlen(src); // 获取长度
 
-    if (size) {
+    if (size) { // 若长度大于零
         size_t len = (ret >= size) ? size - 1 : ret;
-        memcpy(dest, src, len);
-        dest[len] = '\0';
+        memcpy(dest, src, len); // 复制内存，不包括最后的'\0'
+        dest[len] = '\0'; // 手动写最后的'\0'
     }
     return ret;
 }
 
 
 int
-checkdir (const char *dir)
+checkdir (const char *dir) // 判断seafile目录是否存在，不存在或不是目录则返回-1，否则返回0
 {
     SeafStat st;
 
@@ -140,13 +141,14 @@ checkdir (const char *dir)
     return 0;
 #else
     if ((seaf_stat(dir, &st) < 0) || !S_ISDIR(st.st_mode))
+    // 首先根据路径查找seafile的状态，查不到则是-1；反之继续检查该seafile的状态，看它是不是目录
         return -1;
     return 0;
 #endif
 }
 
 int
-checkdir_with_mkdir (const char *dir)
+checkdir_with_mkdir (const char *dir) // 检查是不是目录，若不是则创建
 {
 #ifdef WIN32
     int ret;
@@ -157,30 +159,34 @@ checkdir_with_mkdir (const char *dir)
     g_free (path);
     return ret;
 #else
-    return g_mkdir_with_parents(dir, 0755);
+    return g_mkdir_with_parents(dir, 0755); // 创建包括父目录在内的所有目录
 #endif
 }
 
 int
-objstore_mkdir (const char *base)
+objstore_mkdir (const char *base) // 创建ccnet对象存储目录
 {
+/**
+ * 创建子目录从 '00' 到 'ff'.
+ * 若 `base` 和 subdir 不存在则创建. 
+ */
     int ret;
     int i, j, len;
     static const char hex[] = "0123456789abcdef";
     char subdir[SEAF_PATH_MAX];
 
-    if ( (ret = checkdir_with_mkdir(base)) < 0)
+    if ( (ret = checkdir_with_mkdir(base)) < 0) // 不存在则创建base
         return ret;
 
     len = strlen(base);
     memcpy(subdir, base, len);
     subdir[len] = G_DIR_SEPARATOR;
-    subdir[len+3] = '\0';
+    subdir[len+3] = '\0'; // 组合一个新的目录路径
 
     for (i = 0; i < 16; i++) {
         subdir[len+1] = hex[i];
         for (j = 0; j < 16; j++) {
-            subdir[len+2] = hex[j];
+            subdir[len+2] = hex[j]; // 从'aa'到'ff'
             if ( (ret = checkdir_with_mkdir(subdir)) < 0)
                 return ret;
         }
@@ -189,17 +195,17 @@ objstore_mkdir (const char *base)
 }
 
 void
-objstore_get_path (char *path, const char *base, const char *obj_id)
+objstore_get_path (char *path, const char *base, const char *obj_id) // 给定ccnet对象存储目录base，以及ccnet对象的id（'aa'+`id`），获取它的存储路径至path
 {
     int len;
 
     len = strlen(base);
-    memcpy(path, base, len);
+    memcpy(path, base, len); // 首先把存储目录复制到path
     path[len] = G_DIR_SEPARATOR;
-    path[len+1] = obj_id[0];
+    path[len+1] = obj_id[0]; // 然后把'aa'复制到path，并加上分隔符。'aa'是一个子目录
     path[len+2] = obj_id[1];
     path[len+3] = G_DIR_SEPARATOR;
-    strcpy(path+len+4, obj_id+2);
+    strcpy(path+len+4, obj_id+2); // 最后把对象名后几位直接接到末尾。后几位代表一个文件
 }
 
 #ifdef WIN32
@@ -384,7 +390,7 @@ windows_error_to_errno (DWORD error)
 #endif
 
 int
-seaf_stat (const char *path, SeafStat *st)
+seaf_stat (const char *path, SeafStat *st) // 根据seafile路径获取seafile状态至st
 {
 #ifdef WIN32
     wchar_t *wpath = win32_long_path (path);
@@ -415,12 +421,12 @@ out:
 
     return ret;
 #else
-    return stat (path, st);
+    return stat (path, st); // 转发到stat
 #endif
 }
 
 int
-seaf_fstat (int fd, SeafStat *st)
+seaf_fstat (int fd, SeafStat *st) // 根据seafile的id获取状态
 {
 #ifdef WIN32
     if (_fstat64 (fd, st) < 0)
@@ -431,7 +437,7 @@ seaf_fstat (int fd, SeafStat *st)
 
     return 0;
 #else
-    return fstat (fd, st);
+    return fstat (fd, st); // 转发到fstat
 #endif
 }
 
@@ -457,10 +463,10 @@ seaf_stat_from_find_data (WIN32_FIND_DATAW *fdata, SeafStat *st)
 #endif
 
 int
-seaf_set_file_time (const char *path, guint64 mtime)
+seaf_set_file_time (const char *path, guint64 mtime) // 设置seafile的文件时间
 {
 #ifndef WIN32
-    struct stat st;
+    struct stat st; // 文件状态
     struct utimbuf times;
 
     if (stat (path, &st) < 0) {
@@ -468,10 +474,10 @@ seaf_set_file_time (const char *path, guint64 mtime)
         return -1;
     }
 
-    times.actime = st.st_atime;
-    times.modtime = (time_t)mtime;
+    times.actime = st.st_atime; // 访问时间
+    times.modtime = (time_t)mtime; // 修改时间
 
-    return utime (path, &times);
+    return utime (path, &times); // API，把时间应用到文件
 #else
     wchar_t *wpath = win32_long_path (path);
     int ret = 0;
@@ -485,7 +491,7 @@ seaf_set_file_time (const char *path, guint64 mtime)
 }
 
 int
-seaf_util_unlink (const char *path)
+seaf_util_unlink (const char *path) // 删除seafile文件
 {
 #ifdef WIN32
     wchar_t *wpath = win32_long_path (path);
@@ -499,12 +505,12 @@ seaf_util_unlink (const char *path)
     g_free (wpath);
     return ret;
 #else
-    return unlink (path);
+    return unlink (path); // API，删除文件
 #endif
 }
 
 int
-seaf_util_rmdir (const char *path)
+seaf_util_rmdir (const char *path) // 删除seafile目录
 {
 #ifdef WIN32
     wchar_t *wpath = win32_long_path (path);
@@ -518,12 +524,12 @@ seaf_util_rmdir (const char *path)
     g_free (wpath);
     return ret;
 #else
-    return rmdir (path);
+    return rmdir (path); // API，删除目录
 #endif
 }
 
 int
-seaf_util_mkdir (const char *path, mode_t mode)
+seaf_util_mkdir (const char *path, mode_t mode) // 创建seafile目录
 {
 #ifdef WIN32
     wchar_t *wpath = win32_long_path (path);
@@ -537,12 +543,12 @@ seaf_util_mkdir (const char *path, mode_t mode)
     g_free (wpath);
     return ret;
 #else
-    return mkdir (path, mode);
+    return mkdir (path, mode); // API，创建目录
 #endif
 }
 
 int
-seaf_util_open (const char *path, int flags)
+seaf_util_open (const char *path, int flags) // 打开seafile文件，返回文件描述符
 {
 #ifdef WIN32
     wchar_t *wpath;
@@ -574,12 +580,12 @@ seaf_util_open (const char *path, int flags)
     g_free (wpath);
     return fd;
 #else
-    return open (path, flags);
+    return open (path, flags); // API，打开文件，返回文件描述符
 #endif
 }
 
 int
-seaf_util_create (const char *path, int flags, mode_t mode)
+seaf_util_create (const char *path, int flags, mode_t mode) // 创建seafile文件
 {
 #ifdef WIN32
     wchar_t *wpath;
@@ -611,12 +617,12 @@ seaf_util_create (const char *path, int flags, mode_t mode)
     g_free (wpath);
     return fd;
 #else
-    return open (path, flags, mode);
+    return open (path, flags, mode); // API，创建文件（指定权限），返回文件描述符
 #endif
 }
 
 int
-seaf_util_rename (const char *oldpath, const char *newpath)
+seaf_util_rename (const char *oldpath, const char *newpath) // 重命名
 {
 #ifdef WIN32
     wchar_t *oldpathw = win32_long_path (oldpath);
@@ -637,7 +643,7 @@ seaf_util_rename (const char *oldpath, const char *newpath)
 }
 
 gboolean
-seaf_util_exists (const char *path)
+seaf_util_exists (const char *path) // 是否存在
 {
 #ifdef WIN32
     wchar_t *wpath = win32_long_path (path);
@@ -655,7 +661,7 @@ seaf_util_exists (const char *path)
 }
 
 gint64
-seaf_util_lseek (int fd, gint64 offset, int whence)
+seaf_util_lseek (int fd, gint64 offset, int whence) // 文件指针
 {
 #ifdef WIN32
     return _lseeki64 (fd, offset, whence);
@@ -733,7 +739,7 @@ out:
 #endif
 
 ssize_t
-readn (int fd, void *buf, size_t n)
+readn (int fd, void *buf, size_t n) // 读n个bit
 {
 	size_t	n_left;
 	ssize_t	n_read;
@@ -742,7 +748,7 @@ readn (int fd, void *buf, size_t n)
 	ptr = buf;
 	n_left = n;
 	while (n_left > 0) {
-        n_read = read(fd, ptr, n_left);
+        n_read = read(fd, ptr, n_left); // 根据文件句柄，尝试读n_left个字节，返回实际读的字节数
 		if (n_read < 0) {
 			if (errno == EINTR)
 				n_read = 0;
@@ -751,14 +757,14 @@ readn (int fd, void *buf, size_t n)
 		} else if (n_read == 0)
 			break;
 
-		n_left -= n_read;
-		ptr += n_read;
+        n_left -= n_read; // 减去读了的几个字节
+        ptr += n_read;
 	}
 	return (n - n_left);
 }
 
 ssize_t
-writen (int fd, const void *buf, size_t n)
+writen (int fd, const void *buf, size_t n) // 写，流程同上
 {
 	size_t		n_left;
 	ssize_t		n_written;
@@ -783,7 +789,7 @@ writen (int fd, const void *buf, size_t n)
 
 
 ssize_t
-recvn (evutil_socket_t fd, void *buf, size_t n)
+recvn (evutil_socket_t fd, void *buf, size_t n) // 从socket读（socket其实就是文件，也使用unix文件描述符）
 {
 	size_t	n_left;
 	ssize_t	n_read;
@@ -812,7 +818,7 @@ recvn (evutil_socket_t fd, void *buf, size_t n)
 }
 
 ssize_t
-sendn (evutil_socket_t fd, const void *buf, size_t n)
+sendn (evutil_socket_t fd, const void *buf, size_t n) // 向socket写
 {
 	size_t		n_left;
 	ssize_t		n_written;
@@ -839,18 +845,18 @@ sendn (evutil_socket_t fd, const void *buf, size_t n)
 	return n;
 }
 
-int copy_fd (int ifd, int ofd)
+int copy_fd (int ifd, int ofd) // 根据文件描述符复制文件（从ifd到ofd）
 {
     while (1) {
-        char buffer[8192];
-        ssize_t len = readn (ifd, buffer, sizeof(buffer));
-        if (!len)
+        char buffer[8192]; // 8kb的缓冲
+        ssize_t len = readn (ifd, buffer, sizeof(buffer)); // 读8kb到缓冲，获取读的长度len
+        if (!len) // 没读到，结束
             break;
-        if (len < 0) {
+        if (len < 0) { // 出错
             close (ifd);
             return -1;
         }
-        if (writen (ofd, buffer, len) < 0) {
+        if (writen (ofd, buffer, len) < 0) { // 将buffer写入到ofd
             close (ofd);
             return -1;
         }
@@ -859,31 +865,31 @@ int copy_fd (int ifd, int ofd)
     return 0;
 }
 
-int copy_file (const char *dst, const char *src, int mode)
+int copy_file(const char *dst, const char *src, int mode) // 根据路径复制文件（若dest存在则不操作）
 {
-    int fdi, fdo, status;
+    int fdi, fdo, status; // 文件描述符、状态
 
-    if ((fdi = g_open (src, O_RDONLY | O_BINARY, 0)) < 0)
+    if ((fdi = g_open (src, O_RDONLY | O_BINARY, 0)) < 0) // 只读以二进制打开
         return fdi;
 
-    fdo = g_open (dst, O_WRONLY | O_CREAT | O_EXCL | O_BINARY, mode);
-    if (fdo < 0 && errno == EEXIST) {
-        close (fdi);
+    fdo = g_open (dst, O_WRONLY | O_CREAT | O_EXCL | O_BINARY, mode); // 创建新文件，只写，以二进制打开
+    if (fdo < 0 && errno == EEXIST) { // 已存在
+        close (fdi); // 直接关
         return 0;
-    } else if (fdo < 0){
+    } else if (fdo < 0){ // 错误
         close (fdi);
         return -1;
     }
 
-    status = copy_fd (fdi, fdo);
+    status = copy_fd (fdi, fdo); // 转发copy_fd
     if (close (fdo) != 0)
         return -1;
 
-    return status;
+    return status; // 返回copy_fd的状态
 }
 
 char*
-ccnet_expand_path (const char *src)
+ccnet_expand_path (const char *src) // ccnet路径规范化，输入一个目录路径src，返回规范化后的绝对路径
 {
 #ifdef WIN32
     char new_path[SEAF_PATH_MAX + 1];
@@ -907,9 +913,9 @@ ccnet_expand_path (const char *src)
 
     return strdup (new_path);
 #else
-    const char *next_in, *ntoken;
-    char new_path[SEAF_PATH_MAX + 1];
-    char *next_out;
+    const char *next_in, *ntoken; // next_in是src的指针；ntoken是另一个src的指针用于定位斜杠
+    char new_path[SEAF_PATH_MAX + 1]; // 规范化的结果
+    char *next_out; // new_path的指针
     int len;
 
    /* special cases */
@@ -922,20 +928,22 @@ ccnet_expand_path (const char *src)
     next_out = new_path;
     *next_out = '\0';
 
-    if (*src == '~') {
+    // 此步骤将src开头的~或~<user>转化为工作目录；或者对不合法路径直接返回当前工作目录
+    // 结果存储到new_path中
+    if (*src == '~') { // 如果源目录在主目录下
         /* handle src start with '~' or '~<user>' like '~plt' */
         struct passwd *pw = NULL;
 
         for ( ; *next_in != '/' && *next_in != '\0'; next_in++) ;
         
         len = next_in - src;
-        if (len == 1) {
-            pw = getpwuid (geteuid());
+        if (len == 1) { // 执行者的主目录
+            pw = getpwuid (geteuid()); // 获取当前用户的passwd
         } else {
             /* copy '~<user>' to new_path */
             memcpy (new_path, src, len);
             new_path[len] = '\0';
-            pw = getpwnam (new_path + 1);
+            pw = getpwnam (new_path + 1); // 获取<user>的passwd
         }
         if (pw == NULL)
             return NULL;
@@ -945,57 +953,59 @@ ccnet_expand_path (const char *src)
         next_out = new_path + len;
         *next_out = '\0';
 
-        if (*next_in == '\0')
+        if (*next_in == '\0') // 就是主目录，则直接返回
             return strdup (new_path);
-    } else if (*src != '/') {
-        getcwd (new_path, SEAF_PATH_MAX);
+    } else if (*src != '/') { // 如果不是以'/'开头，说明错误
+        getcwd (new_path, SEAF_PATH_MAX); // 则设为当前用户工作目录
         for ( ; *next_out; next_out++) ; /* to '\0' */
     }
-    
+
+    // 此步骤对余下部分进行规范化（去除'.'和'..'，并统一在最后加上斜杠表示目录）
     while (*next_in != '\0') {
-        /* move ntoken to the next not '/' char  */
+        /* move ntoken to the next not '/' char  */ // 找到下一个非斜杠
         for (ntoken = next_in; *ntoken == '/'; ntoken++) ;
 
         for (next_in = ntoken; *next_in != '/' 
-                 && *next_in != '\0'; next_in++) ;
+                 && *next_in != '\0'; next_in++) ; // 找到下一个斜杠
  
-        len = next_in - ntoken;
+        len = next_in - ntoken; // 中间就是目录名
 
         if (len == 0) {
             /* the path ends with '/', keep it */
             *next_out++ = '/';
             *next_out = '\0';
-            break;
+            break; // 路径以斜杠结尾，保留这个斜杠
         }
 
-        if (len == 2 && ntoken[0] == '.' && ntoken[1] == '.') 
+        if (len == 2 && ntoken[0] == '.' && ntoken[1] == '.') // 含'..'的情况
         {
             /* '..' */
             for (; next_out > new_path && *next_out != '/'; next_out--)
-                ;
+                ; // next_out回到父目录
             *next_out = '\0';
-        } else if (ntoken[0] != '.' || len != 1) {
+        } else if (ntoken[0] != '.' || len != 1) { // 有目录名的情况
             /* not '.' */
             *next_out++ = '/';
-            memcpy (next_out, ntoken, len);
+            memcpy (next_out, ntoken, len); // 复制目录名
             next_out += len;
             *next_out = '\0';
         }
+        // 含'.'的情况直接跳过
     }
 
     /* the final special case */
-    if (new_path[0] == '\0') {
+    if (new_path[0] == '\0') { // 目录为空，则设为根目录
         new_path[0] = '/';
         new_path[1] = '\0';
     }
-    return strdup (new_path);
+    return strdup (new_path); // 拷贝到堆并返回，避免局部变量回收
 #endif
 }
 
 
 int
-calculate_sha1 (unsigned char *sha1, const char *msg, int len)
-{
+calculate_sha1 (unsigned char *sha1, const char *msg, int len) // 计算msg的SHA1
+{ //（openssl） 返回20位SHA1字符串
     SHA_CTX c;
 
     if (len < 0)
@@ -1008,7 +1018,7 @@ calculate_sha1 (unsigned char *sha1, const char *msg, int len)
 }
 
 uint32_t
-ccnet_sha1_hash (const void *v)
+ccnet_sha1_hash (const void *v) // 对SHA1字符串进行31-bit哈希
 {
     /* 31 bit hash function */
     const unsigned char *p = v;
@@ -1023,7 +1033,7 @@ ccnet_sha1_hash (const void *v)
 
 int
 ccnet_sha1_equal (const void *v1,
-                  const void *v2)
+                  const void *v2) // 比较两个SHA1字符串是否相同
 {
     const unsigned char *p1 = v1;
     const unsigned char *p2 = v2;
@@ -1037,18 +1047,18 @@ ccnet_sha1_equal (const void *v1,
 }
 
 #ifndef WIN32
-char* gen_uuid ()
-{
+char* gen_uuid () // 生成UUID
+{ // (libuuid)
     char *uuid_str = g_malloc (37);
     uuid_t uuid;
 
     uuid_generate (uuid);
     uuid_unparse_lower (uuid, uuid_str);
 
-    return uuid_str;
+    return uuid_str; // 返回
 }
 
-void gen_uuid_inplace (char *buf)
+void gen_uuid_inplace (char *buf) // 直接在buf处生成UUID
 {
     uuid_t uuid;
 
@@ -1057,14 +1067,14 @@ void gen_uuid_inplace (char *buf)
 }
 
 gboolean
-is_uuid_valid (const char *uuid_str)
+is_uuid_valid (const char *uuid_str) // 判断uuid是否有效
 {
     uuid_t uuid;
 
-    if (!uuid_str)
+    if (!uuid_str) // 是NULL
         return FALSE;
 
-    if (uuid_parse (uuid_str, uuid) < 0)
+    if (uuid_parse (uuid_str, uuid) < 0) // 把uuid_str转换为uuid失败
         return FALSE;
     return TRUE;
 }
@@ -1109,7 +1119,7 @@ is_uuid_valid (const char *uuid_str)
 #endif
 
 gboolean
-is_object_id_valid (const char *obj_id)
+is_object_id_valid (const char *obj_id) // 判断ccnet对象id是否有效
 {
     if (!obj_id)
         return FALSE;
@@ -1118,10 +1128,10 @@ is_object_id_valid (const char *obj_id)
     int i;
     char c;
 
-    if (len != 40)
+    if (len != 40) // 要求40位
         return FALSE;
 
-    for (i = 0; i < len; ++i) {
+    for (i = 0; i < len; ++i) { // 要求HEX
         c = obj_id[i];
         if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))
             continue;
@@ -1131,12 +1141,12 @@ is_object_id_valid (const char *obj_id)
     return TRUE;
 }
 
-char* strjoin_n (const char *seperator, int argc, char **argv)
+char* strjoin_n (const char *seperator, int argc, char **argv) // 将n个字符串连接
 {
     GString *buf;
     int i;
     char *str;
-
+    // argc表示数目，argv表示字符串列表
     if (argc == 0)
         return NULL;
     
@@ -1152,14 +1162,14 @@ char* strjoin_n (const char *seperator, int argc, char **argv)
 }
 
 
-gboolean is_ipaddr_valid (const char *ip)
+gboolean is_ipaddr_valid (const char *ip) // 检查ip是否有效
 {
     unsigned char buf[sizeof(struct in6_addr)];
 
-    if (evutil_inet_pton(AF_INET, ip, buf) == 1)
+    if (evutil_inet_pton(AF_INET, ip, buf) == 1) // 是IPV4
         return TRUE;
 
-    if (evutil_inet_pton(AF_INET6, ip, buf) == 1)
+    if (evutil_inet_pton(AF_INET6, ip, buf) == 1) // 是IPV6
         return TRUE;
     
     return FALSE;
@@ -1172,30 +1182,30 @@ void parse_key_value_pairs (char *string, KeyValueFunc func, void *data)
 
     while (*line) {
         /* handle empty line */
-        if (*line == '\n') {
+        if (*line == '\n') { // 空行跳过
             ++line;
             continue;
         }
 
-        for (next = line; *next != '\n' && *next; ++next) ;
+        for (next = line; *next != '\n' && *next; ++next) ; // 获取'\n'
         *next = '\0';
         
-        for (space = line; space < next && *space != ' '; ++space) ;
+        for (space = line; space < next && *space != ' '; ++space) ; // 获取' '
         if (*space != ' ') {
-            g_warning ("Bad key value format: %s\n", line);
+            g_warning ("Bad key value format: %s\n", line); // 格式错误
             return;
         }
         *space = '\0';
-        key = line;
-        value = space + 1;
+        key = line; // 键
+        value = space + 1; // 值
         
         func (data, key, value);
 
-        line = next + 1;
-    }
+        line = next + 1; // 下一行
+    } // string只能是临时变量，因为string的'\n'都被修改为了'\0'，且未还原，所以不能复用
 }
 
-void parse_key_value_pairs2 (char *string, KeyValueFunc2 func, void *data)
+void parse_key_value_pairs2 (char *string, KeyValueFunc2 func, void *data) // 同上，但只读，且可提前终止
 {
     char *line = string, *next, *space;
     char *key, *value;
@@ -1219,7 +1229,7 @@ void parse_key_value_pairs2 (char *string, KeyValueFunc2 func, void *data)
         key = line;
         value = space + 1;
         
-        if (func(data, key, value) == FALSE)
+        if (func(data, key, value) == FALSE) // 返回0则直接终止
             break;
 
         line = next + 1;
@@ -1236,11 +1246,11 @@ void parse_key_value_pairs2 (char *string, KeyValueFunc2 func, void *data)
  * returns: %TRUE if @string is in str_list, %FALSE otherwise
  */
 gboolean
-string_list_is_exists (GList *str_list, const char *string)
+string_list_is_exists (GList *str_list, const char *string) // 判断字符串是否在列表中
 {
     GList *ptr;
-    for (ptr = str_list; ptr; ptr = ptr->next) {
-        if (g_strcmp0(string, ptr->data) == 0)
+    for (ptr = str_list; ptr; ptr = ptr->next) { // 遍历每个字符串，逐一比对
+        if (g_strcmp0(string, ptr->data) == 0) // 存在
             return TRUE;
     }
     return FALSE;
@@ -1256,19 +1266,19 @@ string_list_is_exists (GList *str_list, const char *string)
  * returns: the new start of the list
  */
 GList*
-string_list_append (GList *str_list, const char *string)
+string_list_append (GList *str_list, const char *string) // 增加一个字符串
 {
-    g_return_val_if_fail (string != NULL, str_list);
+    g_return_val_if_fail (string != NULL, str_list); // 字符串空，直接返回
 
-    if (string_list_is_exists(str_list, string))
+    if (string_list_is_exists(str_list, string)) // 如果字符串已在集合内，直接返回
         return str_list;
 
-    str_list = g_list_append (str_list, g_strdup(string));
+    str_list = g_list_append (str_list, g_strdup(string)); // 堆中复制字符串，增加该指针
     return str_list;
 }
 
 GList *
-string_list_append_sorted (GList *str_list, const char *string)
+string_list_append_sorted (GList *str_list, const char *string) // 字符串列表排序
 {
     g_return_val_if_fail (string != NULL, str_list);
 
@@ -1276,22 +1286,22 @@ string_list_append_sorted (GList *str_list, const char *string)
         return str_list;
 
     str_list = g_list_insert_sorted_with_data (str_list, g_strdup(string),
-                                 (GCompareDataFunc)g_strcmp0, NULL);
+                                 (GCompareDataFunc)g_strcmp0, NULL); // 排序
     return str_list;
 }
 
 
 GList *
-string_list_remove (GList *str_list, const char *string)
+string_list_remove (GList *str_list, const char *string) // 移除
 {
     g_return_val_if_fail (string != NULL, str_list);
 
     GList *ptr;
 
     for (ptr = str_list; ptr; ptr = ptr->next) {
-        if (strcmp((char *)ptr->data, string) == 0) {
-            g_free (ptr->data);
-            return g_list_delete_link (str_list, ptr);
+        if (strcmp((char *)ptr->data, string) == 0) { // 比对
+            g_free (ptr->data); // 释放空间
+            return g_list_delete_link (str_list, ptr); // 删去该指针
         }
     }
     return str_list;
@@ -1299,56 +1309,56 @@ string_list_remove (GList *str_list, const char *string)
 
 
 void
-string_list_free (GList *str_list)
+string_list_free (GList *str_list) // 释放字符串列表
 {
     GList *ptr = str_list;
 
-    while (ptr) {
+    while (ptr) { // 释放所有字符串
         g_free (ptr->data);
         ptr = ptr->next;
     }
 
-    g_list_free (str_list);
+    g_list_free (str_list); // 释放此数据结构
 }
 
 
 void
-string_list_join (GList *str_list, GString *str, const char *seperator)
+string_list_join (GList *str_list, GString *str, const char *seperator) // 将字符串列表以seperator分隔符连接成字符串，存到str里
 {
     GList *ptr;
-    if (!str_list)
+    if (!str_list) // 列表为空，直接返回
         return;
 
     ptr = str_list;
-    g_string_append (str, ptr->data);
+    g_string_append (str, ptr->data); // 加入第一个字符串
 
-    for (ptr = ptr->next; ptr; ptr = ptr->next) {
-        g_string_append (str, seperator);
-        g_string_append (str, (char *)ptr->data);
+    for (ptr = ptr->next; ptr; ptr = ptr->next) { // 遍历列表中每个字符串
+        g_string_append (str, seperator); // 先加入分隔符
+        g_string_append (str, (char *)ptr->data); // 再加入字符串
     }
 }
 
 GList *
-string_list_parse (const char *list_in_str, const char *seperator)
+string_list_parse (const char *list_in_str, const char *seperator) // 将字符串以分割符切割成字符串列表
 {
     if (!list_in_str)
         return NULL;
 
     GList *list = NULL;
-    char **array = g_strsplit (list_in_str, seperator, 0);
+    char **array = g_strsplit (list_in_str, seperator, 0); // 切割成字符串数组
     char **ptr;
 
     for (ptr = array; *ptr; ptr++) {
-        list = g_list_prepend (list, g_strdup(*ptr));
+        list = g_list_prepend (list, g_strdup(*ptr)); // 复制然后加入到列表内
     }
     list = g_list_reverse (list);
     
-    g_strfreev (array);
+    g_strfreev (array); // 释放字符串数组
     return list;
 }
 
 GList *
-string_list_parse_sorted (const char *list_in_str, const char *seperator)
+string_list_parse_sorted (const char *list_in_str, const char *seperator) // 切割+排序
 {
     GList *list = string_list_parse (list_in_str, seperator);
 
@@ -1356,11 +1366,11 @@ string_list_parse_sorted (const char *list_in_str, const char *seperator)
 }
 
 gboolean
-string_list_sorted_is_equal (GList *list1, GList *list2)
+string_list_sorted_is_equal (GList *list1, GList *list2) // 判断两个字符串列表是否相同
 {
     GList *ptr1 = list1, *ptr2 = list2;
 
-    while (ptr1 && ptr2) {
+    while (ptr1 && ptr2) { // 分别遍历每个字符串，一一比对
         if (g_strcmp0(ptr1->data, ptr2->data) != 0)
             break;
 
@@ -1374,7 +1384,7 @@ string_list_sorted_is_equal (GList *list1, GList *list2)
 }
 
 char **
-ncopy_string_array (char **orig, int n)
+ncopy_string_array (char **orig, int n) // 复制orig字符串数组中的前n个字符串并加入到新的数组内，返回新的数组
 {
     char **ret = g_malloc (sizeof(char *) * n);
     int i = 0;
@@ -1385,7 +1395,7 @@ ncopy_string_array (char **orig, int n)
 }
 
 void
-nfree_string_array (char **array, int n)
+nfree_string_array (char **array, int n) // 释放array字符串数组的前n个字符串
 {
     int i = 0;
 
@@ -1395,13 +1405,13 @@ nfree_string_array (char **array, int n)
 }
 
 gint64
-get_current_time()
+get_current_time() // 获取当前系统时间
 {
     GTimeVal tv;
     gint64 t;
 
     g_get_current_time (&tv);
-    t = tv.tv_sec * (gint64)1000000 + tv.tv_usec;
+    t = tv.tv_sec * (gint64)1000000 + tv.tv_usec; // GTimeval -> timestamp
     return t;
 }
 
@@ -1507,20 +1517,20 @@ pgpipe (ccnet_pipe_t handles[2])
 #define ENCRYPT_BLK_SIZE BLK_SIZE
 
 
-int
-ccnet_encrypt (char **data_out,
-               int *out_len,
-               const char *data_in,
-               const int in_len,
-               const char *code,
-               const int code_len)
+int  // ccnet加密，-1失败，0成功
+ccnet_encrypt (char **data_out, // 输出数据
+               int *out_len, // 输出的个数
+               const char *data_in, // 输入数据
+               const int in_len, // 输入的个数
+               const char *code, // 密文
+               const int code_len) // 密码长度
 {
     *data_out = NULL;
     *out_len = -1;
 
     /* check validation */
     if ( data_in == NULL || in_len <= 0 ||
-         code == NULL || code_len <= 0) {
+         code == NULL || code_len <= 0) { // 非法输入
 
         g_warning ("Invalid params.\n");
         return -1;
@@ -1536,32 +1546,33 @@ ccnet_encrypt (char **data_out,
        Electroic-Code-Book cipher mode, and SHA1 as the message digest
        when generating the key. IV is not used in ecb mode,
        actually. */
-    key_len  = EVP_BytesToKey (EVP_aes_128_ecb(), /* cipher mode */
-                               EVP_sha1(),        /* message digest */
-                               NULL,              /* salt */
-                               (unsigned char*)code, /* passwd */
-                               code_len,
-                               3,   /* iteration times */
-                               key, /* the derived key */
-                               iv); /* IV, initial vector */
+    // 根据密文生成密钥，使用AES 128bit密钥、ECB模式、SHA1摘要。IV在ECB模式中没用到。
+    key_len  = EVP_BytesToKey (EVP_aes_128_ecb(), /* cipher mode */ // 对称算法类型
+                               EVP_sha1(),        /* message digest */ // 摘要
+                               NULL,              /* salt */ // 盐
+                               (unsigned char*)code, /* passwd */ // 密文
+                               code_len, // 密文长度
+                               3,   /* iteration times */ // 迭代次数
+                               key, /* the derived key */ // 生成的密钥
+                               iv); /* IV, initial vector */ // 初始向量
 
     /* The key should be 16 bytes long for our 128 bit key. */
-    if (key_len != 16) {
+    if (key_len != 16) { // 如果返回的密钥长度不是128bit，即16B
         g_warning ("failed to init EVP_CIPHER_CTX.\n");
         return -1;
     }
 
     /* Prepare CTX for encryption. */
-    ctx = EVP_CIPHER_CTX_new ();
+    ctx = EVP_CIPHER_CTX_new (); // 对称算法上下文
 
     ret = EVP_EncryptInit_ex (ctx,
-                              EVP_aes_128_ecb(), /* cipher mode */
-                              NULL, /* engine, NULL for default */
-                              key,  /* derived key */
-                              iv);  /* initial vector */
+                              EVP_aes_128_ecb(), /* cipher mode */ // 对称算法
+                              NULL, /* engine, NULL for default */ // 引擎
+                              key,  /* derived key */ // 密钥
+                              iv);  /* initial vector */ // 初始向量
 
-    if (ret == ENC_FAILURE){
-        EVP_CIPHER_CTX_free (ctx);
+    if (ret == ENC_FAILURE){ // 结果为失败
+        EVP_CIPHER_CTX_free (ctx); // 释放上下文
         return -1;
     }
     /* Allocating output buffer. */
@@ -1570,45 +1581,45 @@ ccnet_encrypt (char **data_out,
       For EVP symmetric encryption, padding is always used __even if__
       data size is a multiple of block size, in which case the padding
       length is the block size. so we have the following:
-    */
+    */ // EVP对称加密中一定会进行填充，即便数据长度是BLK_SIZE的整数倍
     
-    blks = (in_len / BLK_SIZE) + 1;
+    blks = (in_len / BLK_SIZE) + 1; // 组数
 
-    *data_out = (char *)g_malloc (blks * BLK_SIZE);
+    *data_out = (char *)g_malloc (blks * BLK_SIZE); // 为数据输出申请一个是BLK_SIZE整数倍的内存空间
 
-    if (*data_out == NULL) {
+    if (*data_out == NULL) { // 申请失败
         g_warning ("failed to allocate the output buffer.\n");
         goto enc_error;
     }                
 
     int update_len, final_len;
 
-    /* Do the encryption. */
+    /* Do the encryption. */ // 进行加密
     ret = EVP_EncryptUpdate (ctx,
                              (unsigned char*)*data_out,
-                             &update_len,
+                             &update_len, // 返回已处理的长度
                              (unsigned char*)data_in,
                              in_len);
 
-    if (ret == ENC_FAILURE)
+    if (ret == ENC_FAILURE) // 加密失败
         goto enc_error;
     
-    /* Finish the possible partial block. */
+    /* Finish the possible partial block. */ // 处理余下的部分
     ret = EVP_EncryptFinal_ex (ctx,
                                (unsigned char*)*data_out + update_len,
-                               &final_len);
+                               &final_len); // 返回已处理的长度
 
-    *out_len = update_len + final_len;
+    *out_len = update_len + final_len; // 总长度等于两次处理的长度之和
 
-    /* out_len should be equal to the allocated buffer size. */
+    /* out_len should be equal to the allocated buffer size. */ // 检查长度
     if (ret == ENC_FAILURE || *out_len != (blks * BLK_SIZE))
         goto enc_error;
     
-    EVP_CIPHER_CTX_free (ctx);
+    EVP_CIPHER_CTX_free (ctx); // 释放上下文
 
     return 0;
 
-enc_error:
+enc_error: // 失败，则回收申请的内存空间
 
     EVP_CIPHER_CTX_free (ctx);
 
@@ -1622,7 +1633,7 @@ enc_error:
     return -1;   
 }
 
-int
+int  // ccnet加密，-1失败，0成功；上面的逆过程
 ccnet_decrypt (char **data_out,
                int *out_len,
                const char *data_in,
@@ -1650,7 +1661,7 @@ ccnet_decrypt (char **data_out,
     /* Generate the derived key. We use AES 128 bits key,
        Electroic-Code-Book cipher mode, and SHA1 as the message digest
        when generating the key. IV is not used in ecb mode,
-       actually. */
+       actually. */ // 根据密文生成密钥
     key_len  = EVP_BytesToKey (EVP_aes_128_ecb(), /* cipher mode */
                                EVP_sha1(),        /* message digest */
                                NULL,              /* salt */
@@ -1681,34 +1692,34 @@ ccnet_decrypt (char **data_out,
 
     /* Allocating output buffer. */
     
-    *data_out = (char *)g_malloc (in_len);
+    *data_out = (char *)g_malloc (in_len); // 为数据输出申请内存空间
 
-    if (*data_out == NULL) {
+    if (*data_out == NULL) { // 申请失败
         g_warning ("failed to allocate the output buffer.\n");
         goto dec_error;
     }                
 
     int update_len, final_len;
 
-    /* Do the decryption. */
+    /* Do the decryption. */ // 进行解密
     ret = EVP_DecryptUpdate (ctx,
                              (unsigned char*)*data_out,
                              &update_len,
                              (unsigned char*)data_in,
                              in_len);
 
-    if (ret == DEC_FAILURE)
+    if (ret == DEC_FAILURE) // 解密失败
         goto dec_error;
 
 
-    /* Finish the possible partial block. */
+    /* Finish the possible partial block. */ // 处理余下部分
     ret = EVP_DecryptFinal_ex (ctx,
                                (unsigned char*)*data_out + update_len,
                                &final_len);
 
     *out_len = update_len + final_len;
 
-    /* out_len should be smaller than in_len. */
+    /* out_len should be smaller than in_len. */ // 检查长度
     if (ret == DEC_FAILURE || *out_len > in_len)
         goto dec_error;
 
@@ -1716,7 +1727,7 @@ ccnet_decrypt (char **data_out,
     
     return 0;
 
-dec_error:
+dec_error: // 失败，则回收申请的内存空间
 
     EVP_CIPHER_CTX_free (ctx);
 
@@ -1731,7 +1742,7 @@ dec_error:
 }
 
 /* convert locale specific input to utf8 encoded string  */
-char *ccnet_locale_to_utf8 (const gchar *src)
+char *ccnet_locale_to_utf8 (const gchar *src) // 本地文字编码转utf-8
 {
     if (!src)
         return NULL;
@@ -1741,7 +1752,7 @@ char *ccnet_locale_to_utf8 (const gchar *src)
     GError *error = NULL;
     gchar *dst = NULL;
 
-    dst = g_locale_to_utf8
+    dst = g_locale_to_utf8 // 通过g_locale_to_utf8转换
         (src,                   /* locale specific string */
          strlen(src),           /* len of src */
          &bytes_read,           /* length processed */
@@ -1756,7 +1767,7 @@ char *ccnet_locale_to_utf8 (const gchar *src)
 }
 
 /* convert utf8 input to locale specific string  */
-char *ccnet_locale_from_utf8 (const gchar *src)
+char *ccnet_locale_from_utf8 (const gchar *src) // 上面的逆变换
 {
     if (!src)
         return NULL;
@@ -2142,10 +2153,10 @@ ccnet_object_type_from_id (const char *object_id)
 {
     char *ptr;
 
-    if ( !(ptr = strchr(object_id, '/')) )
+    if ( !(ptr = strchr(object_id, '/')) ) // 查找第一个'/'
         return NULL;
 
-    return g_strndup(object_id, ptr - object_id);
+    return g_strndup(object_id, ptr - object_id); // 第一个'/'之前的字符串即ccnet的id
 }
 
 
@@ -2172,23 +2183,23 @@ win_stat64_utf8 (char *path_utf8, STAT_STRUCT *sb)
 #endif
 
 static gint64
-calc_recursively (const char *path, GError **calc_error)
+calc_recursively (const char *path, GError **calc_error) // 递归获取path下的所有文件的大小
 {
     gint64 sum = 0;
 
     GError *error = NULL;
     GDir *folder = g_dir_open(path, 0, &error);
-    if (!folder) {
+    if (!folder) { // 传入的路径一定是一个目录的路径，不是目录则报错
         g_set_error (calc_error, CCNET_DOMAIN, 0,
                      "g_open() dir %s failed:%s\n", path, error->message);
         return -1;
     }
 
     const char *name = NULL;
-    while ((name = g_dir_read_name(folder)) != NULL) {
+    while ((name = g_dir_read_name(folder)) != NULL) { // 遍历目录的文件
         STAT_STRUCT sb;
         char *full_path= g_build_filename (path, name, NULL);
-        if (STAT_FUNC(full_path, &sb) < 0) {
+        if (STAT_FUNC(full_path, &sb) < 0) { // 获取文件状态错误
             g_set_error (calc_error, CCNET_DOMAIN, 0, "failed to stat on %s: %s\n",
                          full_path, strerror(errno));
             g_free(full_path);
@@ -2196,18 +2207,18 @@ calc_recursively (const char *path, GError **calc_error)
             return -1;
         }
 
-        if (S_ISDIR(sb.st_mode)) {
+        if (S_ISDIR(sb.st_mode)) { // 是目录，继续递归
             gint64 size = calc_recursively(full_path, calc_error);
-            if (size < 0) {
+            if (size < 0) { // 失败就递归报错，提前关闭folder
                 g_free (full_path);
                 g_dir_close (folder);
                 return -1;
             }
-            sum += size;
-            g_free(full_path);
-        } else if (S_ISREG(sb.st_mode)) {
-            sum += sb.st_size;
-            g_free(full_path);
+            sum += size; // 加上该目录下的文件大小
+            g_free(full_path); // 关闭full_path
+        } else if (S_ISREG(sb.st_mode)) { // 是文件
+            sum += sb.st_size; // 加上文件大小
+            g_free(full_path); // 关闭full_path
         }
     }
 
@@ -2216,9 +2227,9 @@ calc_recursively (const char *path, GError **calc_error)
 }
 
 gint64
-ccnet_calc_directory_size (const char *path, GError **error)
+ccnet_calc_directory_size (const char *path, GError **error) // 获取目录大小
 {
-    return calc_recursively (path, error);
+    return calc_recursively (path, error); // 递归获取大小
 }
 
 #ifdef WIN32
@@ -2261,7 +2272,7 @@ strtok_r(char *s, const char *delim, char **save_ptr)
 /* JSON related utils. For compatibility with json-glib. */
 
 const char *
-json_object_get_string_member (json_t *object, const char *key)
+json_object_get_string_member (json_t *object, const char *key) // 根据键key，返回json对象的值，值为字符串
 {
     json_t *string = json_object_get (object, key);
     if (!string)
@@ -2270,59 +2281,59 @@ json_object_get_string_member (json_t *object, const char *key)
 }
 
 gboolean
-json_object_has_member (json_t *object, const char *key)
+json_object_has_member (json_t *object, const char *key) // 判断json对象是否包含键key
 {
     return (json_object_get (object, key) != NULL);
 }
 
 gint64
-json_object_get_int_member (json_t *object, const char *key)
+json_object_get_int_member (json_t *object, const char *key) // 返回json值，值为int
 {
     json_t *integer = json_object_get (object, key);
     return json_integer_value (integer);
 }
 
 void
-json_object_set_string_member (json_t *object, const char *key, const char *value)
+json_object_set_string_member (json_t *object, const char *key, const char *value) // 设置值，值为字符串
 {
     json_object_set_new (object, key, json_string (value));
 }
 
 void
-json_object_set_int_member (json_t *object, const char *key, gint64 value)
+json_object_set_int_member (json_t *object, const char *key, gint64 value) // 设置值，值为int
 {
     json_object_set_new (object, key, json_integer (value));
 }
 
 void
-clean_utf8_data (char *data, int len)
+clean_utf8_data (char *data, int len) // 将非utf-8字符转化为'?'
 {
     const char *s, *e;
-    char *p;
+    char *p; // 其实s, p, e都是字符串data的指针，只是为了方便区分功能
     gboolean is_valid;
 
     s = data;
     p = data;
 
     while ((s - data) != len) {
-        is_valid = g_utf8_validate (s, len - (s - data), &e);
-        if (is_valid)
+        is_valid = g_utf8_validate (s, len - (s - data), &e); // 寻找下一个非utf8的字符，令e指向它
+        if (is_valid) // 若有效，则直接退出
             break;
 
         if (s != e)
-            p += (e - s);
-        *p = '?';
+            p += (e - s); // 令p等于e
+        *p = '?'; // p处替换为'?'
         ++p;
-        s = e + 1;
+        s = e + 1; // 继续寻找
     }
 }
 
 char *
-normalize_utf8_path (const char *path)
+normalize_utf8_path (const char *path) // 将路径字符串转为utf-8
 {
-    if (!g_utf8_validate (path, -1, NULL))
+    if (!g_utf8_validate (path, -1, NULL)) // 存在非utf-8字符，返回空
         return NULL;
-    return g_utf8_normalize (path, -1, G_NORMALIZE_NFC);
+    return g_utf8_normalize (path, -1, G_NORMALIZE_NFC); // 进行标准化
 }
 
 /* zlib related wrapper functions. */
@@ -2330,12 +2341,12 @@ normalize_utf8_path (const char *path)
 #define ZLIB_BUF_SIZE 16384
 
 int
-seaf_compress (guint8 *input, int inlen, guint8 **output, int *outlen)
+seaf_compress (guint8 *input, int inlen, guint8 **output, int *outlen) // seafile压缩，压缩input的inlen个字节到output，并将压缩后的长度存储到outlen
 {
     int ret;
     unsigned have;
-    z_stream strm;
-    guint8 out[ZLIB_BUF_SIZE];
+    z_stream strm; // 压缩流
+    guint8 out[ZLIB_BUF_SIZE]; // 输出
     GByteArray *barray;
 
     if (inlen == 0)
@@ -2345,7 +2356,7 @@ seaf_compress (guint8 *input, int inlen, guint8 **output, int *outlen)
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
-    ret = deflateInit(&strm, Z_DEFAULT_COMPRESSION);
+    ret = deflateInit(&strm, Z_DEFAULT_COMPRESSION); // 初始化
     if (ret != Z_OK) {
         g_warning ("deflateInit failed.\n");
         return -1;
@@ -2357,22 +2368,22 @@ seaf_compress (guint8 *input, int inlen, guint8 **output, int *outlen)
 
     do {
         strm.avail_out = ZLIB_BUF_SIZE;
-        strm.next_out = out;
-        ret = deflate(&strm, Z_FINISH);    /* no bad return value */
+        strm.next_out = out; // 令流的输出指向out
+        ret = deflate(&strm, Z_FINISH);    /* no bad return value */ // 压缩
         have = ZLIB_BUF_SIZE - strm.avail_out;
-        g_byte_array_append (barray, out, have);
-    } while (ret != Z_STREAM_END);
+        g_byte_array_append (barray, out, have); // 将out复制到barray中
+    } while (ret != Z_STREAM_END); // 直到结束
 
-    *outlen = barray->len;
-    *output = g_byte_array_free (barray, FALSE);
+    *outlen = barray->len; // 压缩后的长度
+    *output = g_byte_array_free (barray, FALSE); // 将barray中的数据转移到output中，然后释放barray
 
     /* clean up and return */
-    (void)deflateEnd(&strm);
+    (void)deflateEnd(&strm); // 清空流
     return 0;
 }
 
 int
-seaf_decompress (guint8 *input, int inlen, guint8 **output, int *outlen)
+seaf_decompress (guint8 *input, int inlen, guint8 **output, int *outlen) // seafile解压，同上，逆过程
 {
     int ret;
     unsigned have;
@@ -2404,7 +2415,7 @@ seaf_decompress (guint8 *input, int inlen, guint8 **output, int *outlen)
     do {
         strm.avail_out = ZLIB_BUF_SIZE;
         strm.next_out = out;
-        ret = inflate(&strm, Z_NO_FLUSH);
+        ret = inflate(&strm, Z_NO_FLUSH); // 解压
         if (ret < 0) {
             g_warning ("Failed to inflate.\n");
             goto out;
@@ -2417,29 +2428,29 @@ out:
     /* clean up and return */
     (void)inflateEnd(&strm);
 
-    if (ret == Z_STREAM_END) {
+    if (ret == Z_STREAM_END) { // 确认解压结束
         *outlen = barray->len;
         *output = g_byte_array_free (barray, FALSE);
         return 0;
-    } else {
+    } else { // 解压未结束，返回错误
         g_byte_array_free (barray, TRUE);
         return -1;
     }
 }
 
 char*
-format_dir_path (const char *path)
+format_dir_path (const char *path) // 格式化目录路径；如果传入的是文件路径，则返回它所在的目录的路径
 {
     int path_len = strlen (path);
     char *rpath;
-    if (path[0] != '/') {
+    if (path[0] != '/') { // 不以'/'开头的，以'/'开头
         rpath = g_strconcat ("/", path, NULL);
         path_len++;
-    } else {
+    } else { // 否则直接复制
         rpath = g_strdup (path);
     }
-    while (path_len > 1 && rpath[path_len-1] == '/') {
-        rpath[path_len-1] = '\0';
+    while (path_len > 1 && rpath[path_len-1] == '/') { // 针对path是文件路径的情况，从后往前找'/'
+        rpath[path_len-1] = '\0'; // 将其替换为'\0'，直到找到'/'
         path_len--;
     }
 
@@ -2447,13 +2458,13 @@ format_dir_path (const char *path)
 }
 
 gboolean
-is_empty_string (const char *str)
+is_empty_string (const char *str) // 字符串判空
 {
     return !str || strcmp (str, "") == 0;
 }
 
 gboolean
-is_permission_valid (const char *perm)
+is_permission_valid (const char *perm) // 判断权限是否有效（仅当权限为'r'或'rw'时有效）
 {
     if (is_empty_string (perm)) {
         return FALSE;
@@ -2462,16 +2473,16 @@ is_permission_valid (const char *perm)
     return strcmp (perm, "r") == 0 || strcmp (perm, "rw") == 0;
 }
 
-char *
-seaf_key_file_get_string (GKeyFile *key_file,
-                          const char *group,
-                          const char *key,
-                          GError **error)
+char * // 根据配置文件获取值
+seaf_key_file_get_string (GKeyFile *key_file, // 配置文件
+                          const char *group, // 配置组(如：[xxxx])
+                          const char *key, // 配置键(如：key=value)
+                          GError **error) // 返回错误
 {
     char *v;
 
-    v = g_key_file_get_string (key_file, group, key, error);
-    if (!v || v[0] == '\0') {
+    v = g_key_file_get_string (key_file, group, key, error); // 取值
+    if (!v || v[0] == '\0') { // 如果是空字符串，就释放，然后返回空指针
         g_free (v);
         return NULL;
     }
@@ -2482,7 +2493,7 @@ seaf_key_file_get_string (GKeyFile *key_file,
 gchar*
 ccnet_key_file_get_string (GKeyFile *keyf,
                            const char *category,
-                           const char *key)
+                           const char *key) // 同上，并删除末尾的空格
 {
     gchar *v;
 
@@ -2495,5 +2506,5 @@ ccnet_key_file_get_string (GKeyFile *keyf,
         return NULL;
     }
 
-    return g_strchomp(v);
+    return g_strchomp(v); // 删除末尾的空格
 }

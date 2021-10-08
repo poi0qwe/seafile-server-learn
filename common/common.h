@@ -1,4 +1,5 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* 头文件引用、消息宏、debug宏 */
 
 #ifndef COMMON_H
 #define COMMON_H
@@ -33,7 +34,7 @@
  * Listen manager on the server will use the new block tx protocol if it
  * receives this signature as "token".
  */
-#define BLOCK_PROTOCOL_SIGNATURE "529319a0-577f-4d6b-a6c3-3c20f56f290c"
+#define BLOCK_PROTOCOL_SIGNATURE "529319a0-577f-4d6b-a6c3-3c20f56f290c" // 数据块协议签名
 
 #define SEAF_PATH_MAX 4096
 
