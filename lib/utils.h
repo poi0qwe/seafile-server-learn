@@ -186,11 +186,11 @@ char* ccnet_expand_path (const char *src); // ccnet路径规范化
 int objstore_mkdir (const char *base); // 创建ccnet对象存储目录
 void objstore_get_path (char *path, const char *base, const char *obj_id); // 给定ccnet对象路径base，以及ccnet对象的id（'aa'+`id`），得到它的存储路径至path
 
-/* Read "n" bytes from a descriptor. */ // 从seafile中操作n个bit
+/* Read "n" bytes from a descriptor. */ // 从seafile中操作n个字节
 ssize_t	readn(int fd, void *vptr, size_t n);
 ssize_t writen(int fd, const void *vptr, size_t n);
 
-/* Read "n" bytes from a socket. */ // 从socket中操作n个bit
+/* Read "n" bytes from a socket. */ // 从socket中操作n个字节
 ssize_t	recvn(evutil_socket_t fd, void *vptr, size_t n);
 ssize_t sendn(evutil_socket_t fd, const void *vptr, size_t n);
 

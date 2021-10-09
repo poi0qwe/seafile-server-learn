@@ -2,13 +2,13 @@
 
 此部分代码涵盖了一些实用的功能及数据结构，涉及到数据库、线程管理、网络等常用功能，目的是对这些常用内容进行封装以降低耦合度。
 
-以下是对c语言源码作出的简要分析，详细分析见。（vala部分的用途暂时未知；py文件给出了需要生成的RPC方法的参数与返回值类型，不可读）
+以下是对c语言源码作出的简要分析，详细分析见【[github](https://github.com/poi0qwe/seafile-server-learn/tree/main/lib)】。（vala部分的用途暂时未知；py文件给出了需要生成的RPC方法的参数与返回值类型，不可读）
 
-## include
+## [include](https://github.com/poi0qwe/seafile-server-learn/blob/main/lib/include.h)
 
 引用头文件、定义消息宏和Debug宏。
 
-## bloom-filter
+## [bloom-filter](https://github.com/poi0qwe/seafile-server-learn/blob/main/lib/bloom-filter.h)
 
 实现了布隆过滤器，包括计数布隆过滤器。
 
@@ -83,7 +83,7 @@
     值得一提的是在计数布隆过滤器中，若某个单元的数值大于等于$15$，则认为该单元已满，此后不再对该单元进行操作。
 
 
-## job-mgr
+## [job-mgr](https://github.com/poi0qwe/seafile-server-learn/blob/main/lib/job-mgr.h)
 
 实现了任务线程管理。其中有两个数据结构：任务、任务管理器。
 
@@ -155,7 +155,7 @@
 
     释放任务管理器的任务列表、线程池、以及它本身所占用的空间。
 
-## timer
+## [timer](https://github.com/poi0qwe/seafile-server-learn/blob/main/lib/timer.h)
 
 基于libevent的evtimer，实现了定时器功能。功能等价于：
 
@@ -202,7 +202,7 @@ while (1) {
 
     此函数不仅释放定时器空间，还让定时器的指针指向NULL，用以停止定时器内的循环调用。
 
-## db
+## [db](https://github.com/poi0qwe/seafile-server-learn/blob/main/lib/db.h)
 
 对sqlite相关操作的封装。使用的是sqlite3的API。
 
@@ -264,7 +264,7 @@ while (1) {
 
     sqlite_get_int/sqlite_get_int64/sqlite_get_string：获取单值查询的结果。
 
-## net
+## [net](https://github.com/poi0qwe/seafile-server-learn/blob/main/lib/net.h)
 
 socket网络编程相关。
 
@@ -308,9 +308,9 @@ socket网络编程相关。
                struct sockaddr_storage *sa); // 通过ip地址和端口得到sockaddr_storage
     ```
 
-## utils
+## [utils](https://github.com/poi0qwe/seafile-server-learn/blob/main/lib/utils.h)
 
-使用函数集。由于函数太多，只作笼统概述。
+使用函数集。由于函数太多，只作笼统概述。详见【[utils.c](https://github.com/poi0qwe/seafile-server-learn/blob/main/lib/utils.c)】
 
 1. ### 管道、读写
 
@@ -495,5 +495,3 @@ socket网络编程相关。
     int seaf_compress (guint8 *input, int inlen, guint8 **output, int *outlen); // 压缩seafile文件数据
     int seaf_decompress (guint8 *input, int inlen, guint8 **output, int *outlen); // 解压缩seafile文件数据
     ```
-
-8.  ### 其他

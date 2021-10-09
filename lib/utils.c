@@ -739,7 +739,7 @@ out:
 #endif
 
 ssize_t
-readn (int fd, void *buf, size_t n) // 读n个bit
+readn (int fd, void *buf, size_t n) // 读n个字节
 {
 	size_t	n_left;
 	ssize_t	n_read;
