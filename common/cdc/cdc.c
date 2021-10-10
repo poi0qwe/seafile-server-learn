@@ -210,10 +210,14 @@ int file_chunk_cdc(int fd_src, // 文件标识符
             fingerprint = (cur == block_min_sz - 1) ?  // 计算指纹
                 finger(buf + cur - BLOCK_WIN_SZ + 1, BLOCK_WIN_SZ) : // 首次计算
                 rolling_finger (fingerprint, BLOCK_WIN_SZ, 
-                                *(buf+cur-BLOCK_WIN_SZ), *(buf + cur)); // 迭代计算
+                                *(buf+cur-BLOCK_WIN_SZ), *(buf + cur)); // 滚动计算
+            // 1. 若两个字符串完全相同，则它们的rabin_finger一定相等
+            // 2. 对给定的mask，rabin_finger的碰撞概率为2^(-len(mask))
+            //    也就是说对每BLOCK_WIN_SZ个字节，它们是断点的概率=2^(-len(block_mask))=2^(-20)
+            //    即，平均每2^20个字节出现一个断点，因此块的平均大小就是2^20也就是block_mask+1=block_sz
 
             /* get a chunk, write block info to chunk file */
-            if (((fingerprint & block_mask) ==  ((BREAK_VALUE & block_mask))) // 找到边界，开始分块
+            if (((fingerprint & block_mask) ==  ((BREAK_VALUE & block_mask))) // 找到断点，开始分块
                 || cur + 1 >= file_descr->block_max_sz)
             {
                 if (file_descr->block_nr == file_descr->max_block_nr) {

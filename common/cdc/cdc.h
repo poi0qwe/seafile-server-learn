@@ -37,7 +37,7 @@ typedef int (*WriteblockFunc)(const char *repo_id, // 仓库id
                               int version, // 版本
                               struct _CDCDescriptor *chunk_descr, // 区块
                               struct SeafileCrypt *crypt, // seafile加密
-                              uint8_t *checksum, // 区块加密和
+                              uint8_t *checksum, // 区块校验和
                               gboolean write_data); // 是否写数据
 
 /* define chunk file header and block entry */
@@ -45,13 +45,13 @@ typedef int (*WriteblockFunc)(const char *repo_id, // 仓库id
 typedef struct _CDCFileDescriptor { // 文件分块信息
     uint32_t block_min_sz; // 块的最小大小
     uint32_t block_max_sz; // 块的最大大小
-    uint32_t block_sz;     // 块的(实际)大小
+    uint32_t block_sz;     // 块的(实际/平均)大小
     uint64_t file_size;    // 整个文件的大小
 
     uint32_t block_nr;     // 实际的块数
-    uint8_t *blk_sha1s;    // 各个块的sha1值
+    uint8_t *blk_sha1s;    // 各个块的sha1值（若两个块的sha1值相等，则可认为它们相同）
     int max_block_nr;      // 最大的块数
-    uint8_t  file_sum[CHECKSUM_LENGTH]; // 文件的加密和
+    uint8_t  file_sum[CHECKSUM_LENGTH]; // 文件的校验和（若两个文件的校验和相等，则可认为它们相同）
 
     WriteblockFunc write_block; // 写块文件的方法
 
@@ -62,7 +62,7 @@ typedef struct _CDCFileDescriptor { // 文件分块信息
 typedef struct _CDCDescriptor { // 分块过程信息
     uint64_t offset;            // 偏移（字节指针）
     uint32_t len;               // 数据缓冲长度
-    uint8_t checksum[CHECKSUM_LENGTH]; // 当前加密和
+    uint8_t checksum[CHECKSUM_LENGTH]; // 当前校验和
     char *block_buf;                   // 数据缓冲
     int result;                        // 结果
 } CDCDescriptor;

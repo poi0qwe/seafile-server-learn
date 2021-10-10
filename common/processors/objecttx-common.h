@@ -1,4 +1,5 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* 指令串(SS)与指令码(SC) */
 
 #ifndef OBJECTTX_COMMON_H
 #define OBJECTTX_COMMON_H

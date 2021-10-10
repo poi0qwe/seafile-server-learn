@@ -1,3 +1,8 @@
+/*
+拉宾指纹
+https://zh.wikipedia.org/wiki/%E6%8B%89%E5%AE%BE%E6%8C%87%E7%BA%B9
+*/
+
 #include <sys/types.h>
 #include "rabin-checksum.h"
 
@@ -54,9 +59,10 @@ static const char bytemsb[0x100] = {
   8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
   8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
 };
+// bytemsb[x]表示x的最高位1在第几位；x是8位int
 
 /* Find last set (most significant bit) */
-static inline u_int fls32 (u_int32_t v)
+static inline u_int fls32(u_int32_t v) // 对于int32，找到最高位1在第几位
 {
     if (v & 0xffff0000) {
         if (v & 0xff000000)
@@ -70,7 +76,7 @@ static inline u_int fls32 (u_int32_t v)
         return bytemsb[v];
 }
 
-static inline char fls64 (u_int64_t v)
+static inline char fls64(u_int64_t v) // 对于int64，找到最高位1在第几位
 {
     u_int32_t h;
     if ((h = v >> 32))
@@ -79,7 +85,7 @@ static inline char fls64 (u_int64_t v)
         return fls32 ((u_int32_t) v);
 }
 
-u_int64_t polymod (u_int64_t nh, u_int64_t nl, u_int64_t d)
+u_int64_t polymod (u_int64_t nh, u_int64_t nl, u_int64_t d) // 多项式(nh<<64|nl)%d
 {
     int i = 0;
     int k = fls64 (d) - 1;
@@ -104,7 +110,7 @@ u_int64_t polymod (u_int64_t nh, u_int64_t nl, u_int64_t d)
     return nl;
 }
 
-void polymult (u_int64_t *php, u_int64_t *plp, u_int64_t x, u_int64_t y)
+void polymult (u_int64_t *php, u_int64_t *plp, u_int64_t x, u_int64_t y) // 多项式x*y=(php<<64)|plp
 {
     int i;
     u_int64_t ph = 0, pl = 0;
@@ -121,49 +127,49 @@ void polymult (u_int64_t *php, u_int64_t *plp, u_int64_t x, u_int64_t y)
         *plp = pl;
 }
 
-u_int64_t polymmult (u_int64_t x, u_int64_t y, u_int64_t d)
+u_int64_t polymmult (u_int64_t x, u_int64_t y, u_int64_t d) // 多项式x*y%d
 {
     u_int64_t h, l;
     polymult (&h, &l, x, y);
     return polymod (h, l, d);
 }
 
-static u_int64_t append8 (u_int64_t p, u_char m)
+static u_int64_t append8 (u_int64_t p, u_char m) // 向后增加八位
 {
     return ((p << 8) | m) ^ T[p >> shift];
 }
 
-static void calcT (u_int64_t poly)
+static void calcT (u_int64_t poly) // 计算T
 {
     int j = 0;
     int xshift = fls64 (poly) - 1;
     shift = xshift - 8;
-    u_int64_t T1 = polymod (0, INT64 (1) << xshift, poly);
+    u_int64_t T1 = polymod (0, INT64 (1) << xshift, poly); // T1 = 2^len(poly) % poly
     for (j = 0; j < 256; j++) {
-        T[j] = polymmult (j, T1, poly) | ((u_int64_t) j << xshift);
+        T[j] = polymmult (j, T1, poly) | ((u_int64_t) j << xshift); // (j * T1 % poly) | (j * 2^len(poly))
     }
 }
 
-static void calcU(int size)
+static void calcU(int size) // 计算U
 {
     int i;
     u_int64_t sizeshift = 1;
     for (i = 1; i < size; i++)
-        sizeshift = append8 (sizeshift, 0);
+        sizeshift = append8 (sizeshift, 0); // 增加八位
     for (i = 0; i < 256; i++)
-        U[i] = polymmult (i, sizeshift, poly);
+        U[i] = polymmult (i, sizeshift, poly); // (j * T1 % poly)
 }
 
-void rabin_init(int len)
+void rabin_init(int len) // 初始化
 {
-    calcT(poly);
-    calcU(len);
+    calcT(poly); // 计算T
+    calcU(len); // 初始化U
 }
 
 /*
  *   a simple 32 bit checksum that can be upadted from end
  */
-unsigned int rabin_checksum(char *buf, int len)
+unsigned int rabin_checksum(char *buf, int len) // 首次计算
 {
     int i;
     unsigned int sum = 0;
@@ -174,7 +180,7 @@ unsigned int rabin_checksum(char *buf, int len)
 }
 
 unsigned int rabin_rolling_checksum(unsigned int csum, int len,
-                                    char c1, char c2)
+                                    char c1, char c2) // 滚动计算
 {
     return append8(csum ^ U[(unsigned char)c1], c2);
 }
