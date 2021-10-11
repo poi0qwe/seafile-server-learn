@@ -7,14 +7,14 @@
 typedef struct _BMetadata BlockMetadata;
 typedef struct _BMetadata BMetadata;
 
-struct _BMetadata { // 块的元数据
+struct _BMetadata { // 块的元数据，即块的统计信息
     char        id[41]; // 块的id
     uint32_t    size; // 块的大小
 };
 
 /* Opaque block handle.
  */
-typedef struct _BHandle BlockHandle;
+typedef struct _BHandle BlockHandle; // 别名
 typedef struct _BHandle BHandle;
 
 enum { // 枚举

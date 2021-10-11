@@ -23,7 +23,7 @@
 #define SEAF_BLOCK_DIR "blocks"
 
 
-extern BlockBackend * // 创建新的后台
+extern BlockBackend * // 创建新的后台，基于文件系统；延后实现
 block_backend_fs_new (const char *block_dir, const char *tmp_dir);
 
 
@@ -135,7 +135,7 @@ seaf_block_manager_remove_block (SeafBlockManager *mgr,
     return mgr->backend->remove_block (mgr->backend, store_id, version, block_id); // 转发
 }
 
-BlockMetadata * // 获取状态
+BlockMetadata * // 获取块元数据
 seaf_block_manager_stat_block (SeafBlockManager *mgr,
                                const char *store_id,
                                int version,
@@ -148,7 +148,7 @@ seaf_block_manager_stat_block (SeafBlockManager *mgr,
     return mgr->backend->stat_block (mgr->backend, store_id, version, block_id); // 转发
 }
 
-BlockMetadata * // 获取状态，依靠句柄
+BlockMetadata * // 获取块元数据，依靠句柄
 seaf_block_manager_stat_block_by_handle (SeafBlockManager *mgr,
                                          BlockHandle *handle)
 {

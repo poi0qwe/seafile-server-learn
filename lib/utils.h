@@ -65,15 +65,15 @@ int pgpipe (ccnet_pipe_t handles[2]);
 #define pipewrite(a,b,c) write((a),(b),(c)) // 定义管道写函数 （实际为write）
 #define pipeclose(a) close((a)) // 定义管道关闭函数 （实际为close）
 
-#define SeafStat struct stat // 定义seafile状态状态结构体 （实际为stat）
+#define SeafStat struct stat // 定义seafile统计信息结构体，即seafile元数据 （实际为stat）
 
 #endif
 
 #define pipereadn(a,b,c) recvn((a),(b),(c)) // 定义管道读n字节函数 （实际为recvn）
 #define pipewriten(a,b,c) sendn((a),(b),(c)) // 定义管道写n字节函数 （实际为sendn）
 
-int seaf_stat (const char *path, SeafStat *st); // 根据seafile的路径获取状态
-int seaf_fstat(int fd, SeafStat *st);           // 根据seafile的文件描述符获取状态
+int seaf_stat (const char *path, SeafStat *st); // 根据seafile的路径获取统计信息
+int seaf_fstat(int fd, SeafStat *st);           // 根据seafile的文件描述符获取统计信息
 
 #ifdef WIN32 // Windows
 void

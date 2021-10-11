@@ -1,4 +1,5 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* 块操作后台；通用结构体，隐藏了实现细节 */
 
 #ifndef BLOCK_BACKEND_H
 #define BLOCK_BACKEND_H
@@ -7,7 +8,7 @@
 
 typedef struct BlockBackend BlockBackend;
 
-struct BlockBackend {
+struct BlockBackend { // 块操作后台，封装了一些块操作函数
     
     BHandle* (*open_block) (BlockBackend *bend,
                             const char *store_id, int version,
@@ -55,6 +56,7 @@ struct BlockBackend {
                               const char *store_id);
 
     void*    be_priv;           /* backend private field */
+    // 后台的私有域（存储私有数据）
 
 };
 

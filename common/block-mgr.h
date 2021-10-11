@@ -136,7 +136,7 @@ seaf_block_manager_copy_block (SeafBlockManager *mgr,
                                const char *block_id);
 
 /* Remove all blocks for a repo. Only valid for version 1 repo. */
-int // 移除仓库中的所有块，仅对版本为1的仓库有效
+int // 移除仓库中的所有块，仅对版本为1的仓库有效；即清空仓库
 seaf_block_manager_remove_store (SeafBlockManager *mgr,
                                  const char *store_id);
 

@@ -141,7 +141,7 @@ checkdir (const char *dir) // 判断seafile目录是否存在，不存在或不�
     return 0;
 #else
     if ((seaf_stat(dir, &st) < 0) || !S_ISDIR(st.st_mode))
-    // 首先根据路径查找seafile的状态，查不到则是-1；反之继续检查该seafile的状态，看它是不是目录
+    // 首先根据路径查找seafile的统计信息，查不到则是-1；反之继续检查该路径是不是目录
         return -1;
     return 0;
 #endif
@@ -390,7 +390,7 @@ windows_error_to_errno (DWORD error)
 #endif
 
 int
-seaf_stat (const char *path, SeafStat *st) // 根据seafile路径获取seafile状态至st
+seaf_stat (const char *path, SeafStat *st) // 根据seafile路径获取seafile统计信息至st
 {
 #ifdef WIN32
     wchar_t *wpath = win32_long_path (path);
@@ -426,7 +426,7 @@ out:
 }
 
 int
-seaf_fstat (int fd, SeafStat *st) // 根据seafile的id获取状态
+seaf_fstat (int fd, SeafStat *st) // 根据seafile的id获取统计信息
 {
 #ifdef WIN32
     if (_fstat64 (fd, st) < 0)
@@ -466,7 +466,7 @@ int
 seaf_set_file_time (const char *path, guint64 mtime) // 设置seafile的文件时间
 {
 #ifndef WIN32
-    struct stat st; // 文件状态
+    struct stat st; // 文件统计信息
     struct utimbuf times;
 
     if (stat (path, &st) < 0) {
@@ -867,7 +867,7 @@ int copy_fd (int ifd, int ofd) // 根据文件描述符复制文件（从ifd到o
 
 int copy_file(const char *dst, const char *src, int mode) // 根据路径复制文件（若dest存在则不操作）
 {
-    int fdi, fdo, status; // 文件描述符、状态
+    int fdi, fdo, status; // 文件描述符；返回状态
 
     if ((fdi = g_open (src, O_RDONLY | O_BINARY, 0)) < 0) // 只读以二进制打开
         return fdi;
