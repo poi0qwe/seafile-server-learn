@@ -1523,7 +1523,7 @@ ccnet_encrypt (char **data_out, // 输出数据
                const char *data_in, // 输入数据
                const int in_len, // 输入的个数
                const char *code, // 密文
-               const int code_len) // 密码长度
+               const int code_len) // 密文长度
 {
     *data_out = NULL;
     *out_len = -1;

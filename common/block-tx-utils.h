@@ -1,3 +1,5 @@
+/* 块传输协议实用方法 */
+
 #ifndef BLOCK_TX_UTILS_H
 #define BLOCK_TX_UTILS_H
 
@@ -5,119 +7,130 @@
 #include <event2/util.h>
 #include <openssl/evp.h>
 
-/* Common structures and contants shared by the client and server. */
+/* Common structures and contents shared by the client and server. */
+// 客户端、服务端通用数据结构和内容
 
-/* We use AES 256 */
-#define ENC_KEY_SIZE 32
-#define ENC_BLOCK_SIZE 16
+/* We use AES 256 */ // AES加密
+#define ENC_KEY_SIZE 32 // 密钥长度
+#define ENC_BLOCK_SIZE 16 // 加密块长度
 
-#define BLOCK_PROTOCOL_VERSION 2
+#define BLOCK_PROTOCOL_VERSION 2 // 协议版本
 
-enum {
-    STATUS_OK = 0,
-    STATUS_VERSION_MISMATCH,
-    STATUS_BAD_REQUEST,
-    STATUS_ACCESS_DENIED,
-    STATUS_INTERNAL_SERVER_ERROR,
-    STATUS_NOT_FOUND,
+enum { // 状态
+    STATUS_OK = 0, // OK
+    STATUS_VERSION_MISMATCH, // 版本不匹配
+    STATUS_BAD_REQUEST, // 请求错误
+    STATUS_ACCESS_DENIED, // 拒绝访问
+    STATUS_INTERNAL_SERVER_ERROR, // 内部服务器错误
+    STATUS_NOT_FOUND, // 未找到
 };
 
-struct _HandshakeRequest {
-    gint32 version;
-    gint32 key_len;
-    char enc_session_key[0];
+struct _HandshakeRequest { // 握手请求
+    gint32 version; // 版本
+    gint32 key_len; // 密钥长度
+    char enc_session_key[0]; // 会话密钥
 } __attribute__((__packed__));
 
 typedef struct _HandshakeRequest HandshakeRequest;
 
-struct _HandshakeResponse {
-    gint32 status;
-    gint32 version;
+struct _HandshakeResponse { // 握手响应
+    gint32 status; // 状态
+    gint32 version; // 版本
 } __attribute__((__packed__));
 
 typedef struct _HandshakeResponse HandshakeResponse;
 
-struct _AuthResponse {
-    gint32 status;
+struct _AuthResponse { // 权限响应
+    gint32 status; // 状态
 } __attribute__((__packed__));
 
 typedef struct _AuthResponse AuthResponse;
 
-enum {
-    REQUEST_COMMAND_GET = 0,
-    REQUEST_COMMAND_PUT,
+enum { // 请求命令
+    REQUEST_COMMAND_GET = 0, // GET
+    REQUEST_COMMAND_PUT, // PUT
 };
 
-struct _RequestHeader {
-    gint32 command;
-    char block_id[40];
+struct _RequestHeader { // 请求头
+    gint32 command; // 命令
+    char block_id[40]; // 块id
 } __attribute__((__packed__));
 
 typedef struct _RequestHeader RequestHeader;
 
-struct _ResponseHeader {
-    gint32 status;
+struct _ResponseHeader { // 响应头
+    gint32 status; // 状态
 } __attribute__((__packed__));
 
 typedef struct _ResponseHeader ResponseHeader;
 
 /* Utility functions for encryption. */
+// 加密实用方法
 
 void
 blocktx_generate_encrypt_key (unsigned char *session_key, int sk_len,
-                              unsigned char *key, unsigned char *iv);
+                              unsigned char *key, unsigned char *iv); // 生成密钥
 
 int
 blocktx_encrypt_init (EVP_CIPHER_CTX **ctx,
                       const unsigned char *key,
-                      const unsigned char *iv);
+                      const unsigned char *iv); // 初始化加密
 
 int
 blocktx_decrypt_init (EVP_CIPHER_CTX **ctx,
                       const unsigned char *key,
-                      const unsigned char *iv);
+                      const unsigned char *iv); // 初始化解密
 
 /*
- * Encrypted data is sent in "frames".
+ * Encrypted data is sent in "frames". 加密数据以帧发送，帧的格式如下：
  * Format of a frame:
  *
  * length of data in the frame after encryption + encrypted data.
+ * 加密解密后该帧的数据长度
  *
  * Each frame can contain three types of contents:
  * 1. Auth request or response;
  * 2. Block request or response header;
  * 3. Block content.
+ * 每帧包含三种类型的内容：
+ * 1. 权限请求或响应
+ * 2. 块请求头或响应头
+ * 3. 块数据
  */
 
-int
-send_encrypted_data_frame_begin (evutil_socket_t data_fd,
-                                 int frame_len);
+/* 发送帧 */
+int // 开始发送加密帧
+send_encrypted_data_frame_begin (evutil_socket_t data_fd, // socket
+                                 int frame_len); // 帧长度
 
-int
-send_encrypted_data (EVP_CIPHER_CTX *ctx,
-                     evutil_socket_t data_fd,
-                     const void *buf, int len);
+int // 发送加密帧
+send_encrypted_data (EVP_CIPHER_CTX *ctx, // 加密上下文
+                     evutil_socket_t data_fd, // socket
+                     const void *buf, int len); // 缓冲及其长度
 
-int
-send_encrypted_data_frame_end (EVP_CIPHER_CTX *ctx,
-                               evutil_socket_t data_fd);
+int // 结束发送加密帧
+send_encrypted_data_frame_end (EVP_CIPHER_CTX *ctx, // 加密上下文
+                               evutil_socket_t data_fd); // socket
 
-typedef int (*FrameContentCB) (char *, int, void *);
+/* 接收帧 */
+typedef int (*FrameContentCB) (char *, int, void *); // 定义帧内容回调函数
 
-typedef int (*FrameFragmentCB) (char *, int, int, void *);
+typedef int (*FrameFragmentCB) (char *, int, int, void *); // 定义帧片段回调函数
 
-typedef struct _FrameParser {
-    int enc_frame_len;
+typedef struct _FrameParser { // 帧转化器
+    int enc_frame_len; // 若为零，则表示读取缓冲区中的所有数据；否则，读取固定长度的数据
 
+    // 版本2的密钥和iv
     unsigned char key[ENC_KEY_SIZE];
     unsigned char iv[ENC_BLOCK_SIZE];
-    gboolean enc_init;
-    EVP_CIPHER_CTX *ctx;
+    gboolean enc_init; // 是否已初始化加密
+    EVP_CIPHER_CTX *ctx; // 加密上下文
 
+    // 版本1的密钥和iv
     unsigned char key_v2[ENC_KEY_SIZE];
     unsigned char iv_v2[ENC_BLOCK_SIZE];
 
-    int version;
+    int version; // 版本
 
     /* Used when parsing fragments */
     int remain;
@@ -130,12 +143,14 @@ typedef struct _FrameParser {
 /* Handle entire frame all at once.
  * parser->content_cb() will be called after the entire frame is read.
  */
+// 处理帧，结束后调用转化器中的content_cb；不将解密上下文记录到转化器中
 int
 handle_one_frame (struct evbuffer *buf, FrameParser *parser);
 
 /* Handle a frame fragment by fragment.
  * parser->fragment_cb() will be called when any amount data is read.
  */
+// 处理片段，每处理一个片段调用一次转化器中的fragment_cb；将解密上下文记录到转化器中
 int
 handle_frame_fragments (struct evbuffer *buf, FrameParser *parser);
 
