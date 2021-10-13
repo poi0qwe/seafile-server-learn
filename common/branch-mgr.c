@@ -1,3 +1,4 @@
+/* 分支管理 */
 #include "common.h"
 
 #include "log.h"
@@ -14,7 +15,7 @@
 
 #define BRANCH_DB "branch.db"
 
-SeafBranch *
+SeafBranch * // 创建新的分支结构体
 seaf_branch_new (const char *name, const char *repo_id, const char *commit_id)
 {
     SeafBranch *branch;
@@ -33,7 +34,7 @@ seaf_branch_new (const char *name, const char *repo_id, const char *commit_id)
 }
 
 void
-seaf_branch_free (SeafBranch *branch)
+seaf_branch_free (SeafBranch *branch) // 释放分支结构体
 {
     if (branch == NULL) return;
     g_free (branch->name);
@@ -41,11 +42,11 @@ seaf_branch_free (SeafBranch *branch)
 }
 
 void
-seaf_branch_list_free (GList *blist)
+seaf_branch_list_free (GList *blist) // 释放分支列表
 {
     GList *ptr;
 
-    for (ptr = blist; ptr; ptr = ptr->next) {
+    for (ptr = blist; ptr; ptr = ptr->next) { // 遍历列表，解除一个引用
         seaf_branch_unref (ptr->data);
     }
     g_list_free (blist);
@@ -53,71 +54,71 @@ seaf_branch_list_free (GList *blist)
 
 
 void
-seaf_branch_set_commit (SeafBranch *branch, const char *commit_id)
+seaf_branch_set_commit (SeafBranch *branch, const char *commit_id) // 设置提交id
 {
     memcpy (branch->commit_id, commit_id, 40);
     branch->commit_id[40] = '\0';
 }
 
 void
-seaf_branch_ref (SeafBranch *branch)
+seaf_branch_ref (SeafBranch *branch) // 增加引用
 {
     branch->ref++;
 }
 
 void
-seaf_branch_unref (SeafBranch *branch)
+seaf_branch_unref (SeafBranch *branch) // 解除引用
 {
     if (!branch)
         return;
 
-    if (--branch->ref <= 0)
+    if (--branch->ref <= 0) // 若该分支没有被引用，直接删除
         seaf_branch_free (branch);
 }
 
-struct _SeafBranchManagerPriv {
-    sqlite3 *db;
+struct _SeafBranchManagerPriv { // 私有域
+    sqlite3 *db; // 数据库
 #ifndef SEAFILE_SERVER
-    pthread_mutex_t db_lock;
+    pthread_mutex_t db_lock; // 锁
 #endif
 };
 
-static int open_db (SeafBranchManager *mgr);
+static int open_db (SeafBranchManager *mgr); // 打开数据库
 
-SeafBranchManager *
+SeafBranchManager * // 创建新的分支管理器结构体
 seaf_branch_manager_new (struct _SeafileSession *seaf)
 {
     SeafBranchManager *mgr;
 
-    mgr = g_new0 (SeafBranchManager, 1);
-    mgr->priv = g_new0 (SeafBranchManagerPriv, 1);
-    mgr->seaf = seaf;
+    mgr = g_new0 (SeafBranchManager, 1); // 申请结构体空间
+    mgr->priv = g_new0 (SeafBranchManagerPriv, 1); // 申请私有域
+    mgr->seaf = seaf; // 设置会话
 
 #ifndef SEAFILE_SERVER
-    pthread_mutex_init (&mgr->priv->db_lock, NULL);
+    pthread_mutex_init (&mgr->priv->db_lock, NULL); // 初始化锁
 #endif
 
     return mgr;
 }
 
 int
-seaf_branch_manager_init (SeafBranchManager *mgr)
+seaf_branch_manager_init (SeafBranchManager *mgr) // 初始化分支管理器
 {
-    return open_db (mgr);
+    return open_db (mgr); // 打开数据库
 }
 
 static int
-open_db (SeafBranchManager *mgr)
+open_db (SeafBranchManager *mgr) // 打开数据库
 {
-    if (!mgr->seaf->create_tables && seaf_db_type (mgr->seaf->db) != SEAF_DB_TYPE_PGSQL)
+    if (!mgr->seaf->create_tables && seaf_db_type (mgr->seaf->db) != SEAF_DB_TYPE_PGSQL) // 会话需要有权限操作数据库
         return 0;
 #ifndef SEAFILE_SERVER
 
     char *db_path;
     const char *sql;
 
-    db_path = g_build_filename (mgr->seaf->seaf_dir, BRANCH_DB, NULL);
-    if (sqlite_open_db (db_path, &mgr->priv->db) < 0) {
+    db_path = g_build_filename (mgr->seaf->seaf_dir, BRANCH_DB, NULL); // 获取seafile目录
+    if (sqlite_open_db (db_path, &mgr->priv->db) < 0) { // 打开数据库
         g_critical ("[Branch mgr] Failed to open branch db\n");
         g_free (db_path);
         return -1;
@@ -126,14 +127,14 @@ open_db (SeafBranchManager *mgr)
 
     sql = "CREATE TABLE IF NOT EXISTS Branch ("
           "name TEXT, repo_id TEXT, commit_id TEXT);";
-    if (sqlite_query_exec (mgr->priv->db, sql) < 0)
+    if (sqlite_query_exec (mgr->priv->db, sql) < 0) // 创建表
         return -1;
 
     sql = "CREATE INDEX IF NOT EXISTS branch_index ON Branch(repo_id, name);";
-    if (sqlite_query_exec (mgr->priv->db, sql) < 0)
+    if (sqlite_query_exec (mgr->priv->db, sql) < 0) // 创建索引
         return -1;
 
-#elif defined FULL_FEATURE
+#elif defined FULL_FEATURE // 全功能，支持SQL、PGSQL、SQLITE
 
     char *sql;
     switch (seaf_db_type (mgr->seaf->db)) {
@@ -167,29 +168,29 @@ open_db (SeafBranchManager *mgr)
 }
 
 int
-seaf_branch_manager_add_branch (SeafBranchManager *mgr, SeafBranch *branch)
+seaf_branch_manager_add_branch (SeafBranchManager *mgr, SeafBranch *branch) // 分支管理器增加新的分支
 {
 #ifndef SEAFILE_SERVER
     char sql[256];
 
-    pthread_mutex_lock (&mgr->priv->db_lock);
+    pthread_mutex_lock (&mgr->priv->db_lock); // 加锁
 
     sqlite3_snprintf (sizeof(sql), sql,
                       "SELECT 1 FROM Branch WHERE name=%Q and repo_id=%Q",
                       branch->name, branch->repo_id);
-    if (sqlite_check_for_existence (mgr->priv->db, sql))
+    if (sqlite_check_for_existence (mgr->priv->db, sql)) // 检查是否存在分支
         sqlite3_snprintf (sizeof(sql), sql,
                           "UPDATE Branch SET commit_id=%Q WHERE "
                           "name=%Q and repo_id=%Q",
-                          branch->commit_id, branch->name, branch->repo_id);
+                          branch->commit_id, branch->name, branch->repo_id); // 存在则更新
     else
         sqlite3_snprintf (sizeof(sql), sql,
-                          "INSERT INTO Branch (name, repo_id, commit_id) VALUES (%Q, %Q, %Q)",
+                          "INSERT INTO Branch (name, repo_id, commit_id) VALUES (%Q, %Q, %Q)", // 否则插入
                           branch->name, branch->repo_id, branch->commit_id);
 
     sqlite_query_exec (mgr->priv->db, sql);
 
-    pthread_mutex_unlock (&mgr->priv->db_lock);
+    pthread_mutex_unlock (&mgr->priv->db_lock); // 解锁
 
     return 0;
 #else
@@ -235,7 +236,7 @@ seaf_branch_manager_add_branch (SeafBranchManager *mgr, SeafBranch *branch)
 #endif
 }
 
-int
+int // 删除分支
 seaf_branch_manager_del_branch (SeafBranchManager *mgr,
                                 const char *repo_id,
                                 const char *name)
@@ -243,15 +244,15 @@ seaf_branch_manager_del_branch (SeafBranchManager *mgr,
 #ifndef SEAFILE_SERVER
     char *sql;
 
-    pthread_mutex_lock (&mgr->priv->db_lock);
+    pthread_mutex_lock (&mgr->priv->db_lock); // 加锁
 
     sql = sqlite3_mprintf ("DELETE FROM Branch WHERE name = %Q AND "
                            "repo_id = '%s'", name, repo_id);
-    if (sqlite_query_exec (mgr->priv->db, sql) < 0)
+    if (sqlite_query_exec (mgr->priv->db, sql) < 0) // 执行删除
         seaf_warning ("Delete branch %s failed\n", name);
     sqlite3_free (sql);
 
-    pthread_mutex_unlock (&mgr->priv->db_lock);
+    pthread_mutex_unlock (&mgr->priv->db_lock); // 解锁
 
     return 0;
 #else
@@ -264,23 +265,23 @@ seaf_branch_manager_del_branch (SeafBranchManager *mgr,
 #endif
 }
 
-int
+int // 更新分支
 seaf_branch_manager_update_branch (SeafBranchManager *mgr, SeafBranch *branch)
 {
 #ifndef SEAFILE_SERVER
     sqlite3 *db;
     char *sql;
 
-    pthread_mutex_lock (&mgr->priv->db_lock);
+    pthread_mutex_lock (&mgr->priv->db_lock); // 加锁
 
     db = mgr->priv->db;
     sql = sqlite3_mprintf ("UPDATE Branch SET commit_id = %Q "
                            "WHERE name = %Q AND repo_id = %Q",
-                           branch->commit_id, branch->name, branch->repo_id);
+                           branch->commit_id, branch->name, branch->repo_id); // 更新
     sqlite_query_exec (db, sql);
     sqlite3_free (sql);
 
-    pthread_mutex_unlock (&mgr->priv->db_lock);
+    pthread_mutex_unlock (&mgr->priv->db_lock); // 解锁
 
     return 0;
 #else
@@ -400,7 +401,7 @@ seaf_branch_manager_test_and_update_branch (SeafBranchManager *mgr,
 #endif
 
 #ifndef SEAFILE_SERVER
-static SeafBranch *
+static SeafBranch * // 实际的获取分支，数据库操作
 real_get_branch (SeafBranchManager *mgr,
                  const char *repo_id,
                  const char *name)
@@ -411,13 +412,13 @@ real_get_branch (SeafBranchManager *mgr,
     char *sql;
     int result;
 
-    pthread_mutex_lock (&mgr->priv->db_lock);
+    pthread_mutex_lock (&mgr->priv->db_lock); // 加锁
 
     db = mgr->priv->db;
     sql = sqlite3_mprintf ("SELECT commit_id FROM Branch "
                            "WHERE name = %Q and repo_id='%s'",
-                           name, repo_id);
-    if (!(stmt = sqlite_query_prepare (db, sql))) {
+                           name, repo_id); // 获取提交id
+    if (!(stmt = sqlite_query_prepare (db, sql))) { // 预编译
         seaf_warning ("[Branch mgr] Couldn't prepare query %s\n", sql);
         sqlite3_free (sql);
         pthread_mutex_unlock (&mgr->priv->db_lock);
@@ -425,15 +426,15 @@ real_get_branch (SeafBranchManager *mgr,
     }
     sqlite3_free (sql);
 
-    result = sqlite3_step (stmt);
-    if (result == SQLITE_ROW) {
-        char *commit_id = (char *)sqlite3_column_text (stmt, 0);
+    result = sqlite3_step (stmt); // 遍历
+    if (result == SQLITE_ROW) { // 下一行
+        char *commit_id = (char *)sqlite3_column_text (stmt, 0); // 读一个字符串
 
-        branch = seaf_branch_new (name, repo_id, commit_id);
-        pthread_mutex_unlock (&mgr->priv->db_lock);
+        branch = seaf_branch_new (name, repo_id, commit_id); // 创建新分支
+        pthread_mutex_unlock (&mgr->priv->db_lock); // 解锁
         sqlite3_finalize (stmt);
         return branch;
-    } else if (result == SQLITE_ERROR) {
+    } else if (result == SQLITE_ERROR) { // SQL执行失败
         const char *str = sqlite3_errmsg (db);
         seaf_warning ("Couldn't prepare query, error: %d->'%s'\n",
                    result, str ? str : "no error given");
@@ -444,7 +445,7 @@ real_get_branch (SeafBranchManager *mgr,
     return NULL;
 }
 
-SeafBranch *
+SeafBranch * // 获取分支
 seaf_branch_manager_get_branch (SeafBranchManager *mgr,
                                 const char *repo_id,
                                 const char *name)
@@ -452,6 +453,7 @@ seaf_branch_manager_get_branch (SeafBranchManager *mgr,
     SeafBranch *branch;
 
     /* "fetch_head" maps to "local" or "master" on client (LAN sync) */
+    // 'fetch_head'被映射为'local'或'master'
     if (strcmp (name, "fetch_head") == 0) {
         branch = real_get_branch (mgr, repo_id, "local");
         if (!branch) {
@@ -518,7 +520,7 @@ seaf_branch_manager_get_branch (SeafBranchManager *mgr,
 
 #endif  /* not SEAFILE_SERVER */
 
-gboolean
+gboolean // 判断分支是否存在
 seaf_branch_manager_branch_exists (SeafBranchManager *mgr,
                                    const char *repo_id,
                                    const char *name)
@@ -530,7 +532,7 @@ seaf_branch_manager_branch_exists (SeafBranchManager *mgr,
     pthread_mutex_lock (&mgr->priv->db_lock);
 
     sql = sqlite3_mprintf ("SELECT name FROM Branch WHERE name = %Q "
-                           "AND repo_id='%s'", name, repo_id);
+                           "AND repo_id='%s'", name, repo_id); // 执行SQL
     ret = sqlite_check_for_existence (mgr->priv->db, sql);
     sqlite3_free (sql);
 
@@ -547,7 +549,7 @@ seaf_branch_manager_branch_exists (SeafBranchManager *mgr,
 }
 
 #ifndef SEAFILE_SERVER
-GList *
+GList * // 获取某仓库的分支列表
 seaf_branch_manager_get_branch_list (SeafBranchManager *mgr,
                                      const char *repo_id)
 {
@@ -566,12 +568,12 @@ seaf_branch_manager_get_branch_list (SeafBranchManager *mgr,
 
     pthread_mutex_lock (&mgr->priv->db_lock);
 
-    if ( !(stmt = sqlite_query_prepare(db, sql)) ) {
+    if ( !(stmt = sqlite_query_prepare(db, sql)) ) { // 预编译
         pthread_mutex_unlock (&mgr->priv->db_lock);
         return NULL;
     }
 
-    while (1) {
+    while (1) { // 遍历每条记录，读每个分支
         result = sqlite3_step (stmt);
         if (result == SQLITE_ROW) {
             name = (char *)sqlite3_column_text(stmt, 0);
@@ -581,11 +583,11 @@ seaf_branch_manager_get_branch_list (SeafBranchManager *mgr,
         }
         if (result == SQLITE_DONE)
             break;
-        if (result == SQLITE_ERROR) {
+        if (result == SQLITE_ERROR) { // 失败
             const gchar *str = sqlite3_errmsg (db);
             seaf_warning ("Couldn't prepare query, error: %d->'%s'\n", 
                        result, str ? str : "no error given");
-            sqlite3_finalize (stmt);
+            sqlite3_finalize (stmt); // 释放空间
             seaf_branch_list_free (ret);
             pthread_mutex_unlock (&mgr->priv->db_lock);
             return NULL;
