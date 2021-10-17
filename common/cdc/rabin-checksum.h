@@ -1,5 +1,5 @@
 /*
-拉宾指纹
+拉宾指纹（滚动哈希）
 https://zh.wikipedia.org/wiki/%E6%8B%89%E5%AE%BE%E6%8C%87%E7%BA%B9
 */
 

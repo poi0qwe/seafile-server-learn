@@ -3,7 +3,7 @@
     Content-Defined Chunking
     基于内容可变长度分块
 
-    https://www.usenix.org/legacy/event/fast10/tech/full_papers/kruus.pdf
+    https://pdos.csail.mit.edu/papers/lbfs:sosp01/lbfs.pdf
     CDC使修改前后的文件在分块后有尽可能多的块相同
     
     另外一个作者的解析：https://github.com/baixiangcpp/FileCDC

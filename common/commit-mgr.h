@@ -11,37 +11,37 @@ typedef struct _SeafCommit SeafCommit;
 
 #include "obj-store.h"
 
-struct _SeafCommit {
-    struct _SeafCommitManager *manager;
+struct _SeafCommit { // seafile提交
+    struct _SeafCommitManager *manager; // 提交管理器
 
-    int         ref;
+    int         ref; // 引用次数
 
-    char        commit_id[41];
-    char        repo_id[37];
-    char        root_id[41];    /* the fs root */
+    char        commit_id[41]; // 提交id
+    char        repo_id[37]; // 仓库id
+    char        root_id[41];    /* the fs root */ // 根id
     char       *desc;
-    char       *creator_name;
-    char        creator_id[41];
-    guint64     ctime;          /* creation time */
-    char       *parent_id;
-    char       *second_parent_id;
-    char       *repo_name;
+    char       *creator_name; // 创建者名字
+    char        creator_id[41]; // 创建者id
+    guint64     ctime;          /* creation time */ // 创建时间
+    char       *parent_id; // 父id
+    char       *second_parent_id; // 祖父id
+    char       *repo_name; // 仓库名
     char       *repo_desc;
-    char       *repo_category;
-    char       *device_name;
-    char       *client_version;
+    char       *repo_category; // 仓库分类
+    char       *device_name; // 设备名
+    char       *client_version; // 客户端版本
 
-    gboolean    encrypted;         
-    int         enc_version;
+    gboolean    encrypted; // 是否已加密
+    int         enc_version; // 加密版本
     char       *magic;
-    char       *random_key;
-    char       *salt;
-    gboolean    no_local_history;
+    char       *random_key; // 随机密钥
+    char       *salt; // 盐
+    gboolean    no_local_history; // 有无本地记录
 
-    int         version;
-    gboolean    new_merge;
-    gboolean    conflict;
-    gboolean    repaired;
+    int         version; // 版本
+    gboolean    new_merge; // 是否是新的合并
+    gboolean    conflict; // 是否冲突
+    gboolean    repaired; // 是否被修复
 };
 
 
@@ -51,7 +51,7 @@ struct _SeafCommit {
  * 
  * Any new commit should be added to commit manager before used.
  */
-SeafCommit *
+SeafCommit * // 新的提交
 seaf_commit_new (const char *commit_id,
                  const char *repo_id,
                  const char *root_id,
@@ -60,16 +60,16 @@ seaf_commit_new (const char *commit_id,
                  const char *desc,
                  guint64 ctime);
 
-char *
+char * // 提交给数据
 seaf_commit_to_data (SeafCommit *commit, gsize *len);
 
-SeafCommit *
+SeafCommit * // 从数据提交
 seaf_commit_from_data (const char *id, char *data, gsize len);
 
-void
+void // 增加引用
 seaf_commit_ref (SeafCommit *commit);
 
-void
+void // 移除引用
 seaf_commit_unref (SeafCommit *commit);
 
 /* Set stop to TRUE if you want to stop traversing a branch in the history graph. 

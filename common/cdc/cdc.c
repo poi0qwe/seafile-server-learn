@@ -3,7 +3,7 @@
     Content-Defined Chunking
     基于内容可变长度分块
     
-    https://www.usenix.org/legacy/event/fast10/tech/full_papers/kruus.pdf
+    https://pdos.csail.mit.edu/papers/lbfs:sosp01/lbfs.pdf
     CDC使修改前后的文件在分块后有尽可能多的块相同
 */
 
@@ -261,7 +261,7 @@ int filename_chunk_cdc(const char *filename,
     return ret;
 }
 
-void cdc_init ()
+void cdc_init () // 初始化分块
 {
-    rabin_init (BLOCK_WIN_SZ);
+    rabin_init (BLOCK_WIN_SZ); // 以BLOCK_WIN_SZ字节的窗口初始化拉宾指纹生成
 }
