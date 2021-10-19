@@ -1,6 +1,6 @@
 #ifndef SEAF_BRANCH_MGR_H
 #define SEAF_BRANCH_MGR_H
-/* 分支管理（分支存储在数据库中） */
+/* 分支管理（分支信息存储在数据库中，分支管理就是从数据库读写分支信息） */
 
 #include "commit-mgr.h"
 #define NO_BRANCH "-"

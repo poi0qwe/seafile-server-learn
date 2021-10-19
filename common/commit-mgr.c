@@ -1,4 +1,5 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* 提交管理 */
 
 #include "common.h"
 
@@ -17,28 +18,28 @@
 
 #define MAX_TIME_SKEW 259200    /* 3 days */
 
-struct _SeafCommitManagerPriv {
+struct _SeafCommitManagerPriv { // 私有域
     int dummy;
 };
 
-static SeafCommit *
+static SeafCommit * // 从数据载入提交
 load_commit (SeafCommitManager *mgr,
              const char *repo_id, int version,
-             const char *commit_id);
-static int
+             const char *commit_id); // 管理器、仓库id、版本、提交id
+static int // 向硬盘保存提交
 save_commit (SeafCommitManager *manager,
              const char *repo_id, int version,
              SeafCommit *commit);
-static void
+static void // 从硬盘删除提交
 delete_commit (SeafCommitManager *mgr,
                const char *repo_id, int version,
                const char *id);
-static json_t *
+static json_t * // 将提交对象转化为json对象
 commit_to_json_object (SeafCommit *commit);
-static SeafCommit *
+static SeafCommit * // 将json对象转化为提交对象
 commit_from_json_object (const char *id, json_t *object);
 
-static void compute_commit_id (SeafCommit* commit)
+static void compute_commit_id (SeafCommit* commit) // 生成提交id，格式：(作者)+描述+时间
 {
     SHA_CTX ctx;
     uint8_t sha1[20];    
@@ -47,16 +48,16 @@ static void compute_commit_id (SeafCommit* commit)
     SHA1_Init (&ctx);
     SHA1_Update (&ctx, commit->root_id, 41);
     SHA1_Update (&ctx, commit->creator_id, 41);
-    if (commit->creator_name)
+    if (commit->creator_name) // 如果创建者实名，则先以之生成SHA1
         SHA1_Update (&ctx, commit->creator_name, strlen(commit->creator_name)+1);
-    SHA1_Update (&ctx, commit->desc, strlen(commit->desc)+1);
+    SHA1_Update (&ctx, commit->desc, strlen(commit->desc)+1); // 接着根据描述生成SHA1
 
     /* convert to network byte order */
-    ctime_n = hton64 (commit->ctime);
+    ctime_n = hton64 (commit->ctime); // 最后根据时间生成SHA1
     SHA1_Update (&ctx, &ctime_n, sizeof(ctime_n));
     SHA1_Final (sha1, &ctx);
     
-    rawdata_to_hex (sha1, commit->commit_id, 20);
+    rawdata_to_hex (sha1, commit->commit_id, 20); // 返回SHA1的HEX形式
 }
 
 SeafCommit*
@@ -66,35 +67,35 @@ seaf_commit_new (const char *commit_id,
                  const char *creator_name,
                  const char *creator_id,
                  const char *desc,
-                 guint64 ctime)
+                 guint64 ctime) // 创建新的提交
 {
     SeafCommit *commit;
 
-    g_return_val_if_fail (repo_id != NULL, NULL);
-    g_return_val_if_fail (root_id != NULL && creator_id != NULL, NULL);
+    g_return_val_if_fail (repo_id != NULL, NULL); // 需要有仓库
+    g_return_val_if_fail (root_id != NULL && creator_id != NULL, NULL); // 需要有根提交和作者
 
-    commit = g_new0 (SeafCommit, 1);
+    commit = g_new0 (SeafCommit, 1); // 申请空间
 
-    memcpy (commit->repo_id, repo_id, 36);
+    memcpy (commit->repo_id, repo_id, 36); // 设置仓库名
     commit->repo_id[36] = '\0';
     
-    memcpy (commit->root_id, root_id, 40);
+    memcpy (commit->root_id, root_id, 40); // 设置根
     commit->root_id[40] = '\0';
 
-    commit->creator_name = g_strdup (creator_name);
+    commit->creator_name = g_strdup (creator_name); // 设置作者名
 
-    memcpy (commit->creator_id, creator_id, 40);
+    memcpy (commit->creator_id, creator_id, 40); // 设置作者id
     commit->creator_id[40] = '\0';
 
-    commit->desc = g_strdup (desc);
+    commit->desc = g_strdup (desc); // 设置描述
     
-    if (ctime == 0) {
+    if (ctime == 0) { // 设置提交时间
         /* TODO: use more precise timer */
         commit->ctime = (gint64)time(NULL);
     } else
         commit->ctime = ctime;
 
-    if (commit_id == NULL)
+    if (commit_id == NULL) // 生成提交id
         compute_commit_id (commit);
     else {
         memcpy (commit->commit_id, commit_id, 40);
@@ -106,7 +107,7 @@ seaf_commit_new (const char *commit_id,
 }
 
 char *
-seaf_commit_to_data (SeafCommit *commit, gsize *len)
+seaf_commit_to_data (SeafCommit *commit, gsize *len) // 转json串
 {
     json_t *object;
     char *json_data;
@@ -124,7 +125,7 @@ seaf_commit_to_data (SeafCommit *commit, gsize *len)
 }
 
 SeafCommit *
-seaf_commit_from_data (const char *id, char *data, gsize len)
+seaf_commit_from_data (const char *id, char *data, gsize len) // json串转结构体
 {
     json_t *object;
     SeafCommit *commit;
@@ -156,7 +157,7 @@ seaf_commit_from_data (const char *id, char *data, gsize len)
 }
 
 static void
-seaf_commit_free (SeafCommit *commit)
+seaf_commit_free (SeafCommit *commit) // 释放提交空间
 {
     g_free (commit->desc);
     g_free (commit->creator_name);
@@ -172,37 +173,37 @@ seaf_commit_free (SeafCommit *commit)
 }
 
 void
-seaf_commit_ref (SeafCommit *commit)
+seaf_commit_ref (SeafCommit *commit) // 增加提交的引用
 {
     commit->ref++;
 }
 
 void
-seaf_commit_unref (SeafCommit *commit)
+seaf_commit_unref (SeafCommit *commit) // 移除提交的引用
 {
     if (!commit)
         return;
 
-    if (--commit->ref <= 0)
+    if (--commit->ref <= 0) // <=0，直接删除
         seaf_commit_free (commit);
 }
 
 SeafCommitManager*
-seaf_commit_manager_new (SeafileSession *seaf)
+seaf_commit_manager_new (SeafileSession *seaf) // 创建提交管理器
 {
     SeafCommitManager *mgr = g_new0 (SeafCommitManager, 1);
 
     mgr->priv = g_new0 (SeafCommitManagerPriv, 1);
     mgr->seaf = seaf;
-    mgr->obj_store = seaf_obj_store_new (mgr->seaf, "commits");
+    mgr->obj_store = seaf_obj_store_new (mgr->seaf, "commits"); // 开辟新的对象存储空间
 
     return mgr;
 }
 
 int
-seaf_commit_manager_init (SeafCommitManager *mgr)
+seaf_commit_manager_init (SeafCommitManager *mgr) // 初始化提交管理器
 {
-    if (seaf_obj_store_init (mgr->obj_store) < 0) {
+    if (seaf_obj_store_init (mgr->obj_store) < 0) { // 初始化seafile对象存储
         seaf_warning ("[commit mgr] Failed to init commit object store.\n");
         return -1;
     }
@@ -229,12 +230,12 @@ remove_commit_from_cache (SeafCommitManager *mgr, SeafCommit *commit)
 
 int
 seaf_commit_manager_add_commit (SeafCommitManager *mgr,
-                                SeafCommit *commit)
+                                SeafCommit *commit) // 添加提交
 {
     int ret;
 
     /* add_commit_to_cache (mgr, commit); */
-    if ((ret = save_commit (mgr, commit->repo_id, commit->version, commit)) < 0)
+    if ((ret = save_commit (mgr, commit->repo_id, commit->version, commit)) < 0) // 存入硬盘
         return -1;
     
     return 0;
@@ -244,7 +245,7 @@ void
 seaf_commit_manager_del_commit (SeafCommitManager *mgr,
                                 const char *repo_id,
                                 int version,
-                                const char *id)
+                                const char *id) // 删除提交
 {
     g_return_if_fail (id != NULL);
 
@@ -263,14 +264,14 @@ seaf_commit_manager_del_commit (SeafCommitManager *mgr,
 delete:
 #endif
 
-    delete_commit (mgr, repo_id, version, id);
+    delete_commit (mgr, repo_id, version, id); // 从硬盘删除
 }
 
 SeafCommit* 
 seaf_commit_manager_get_commit (SeafCommitManager *mgr,
                                 const char *repo_id,
                                 int version,
-                                const char *id)
+                                const char *id) // 获取提交
 {
     SeafCommit *commit;
 
@@ -282,7 +283,7 @@ seaf_commit_manager_get_commit (SeafCommitManager *mgr,
     }
 #endif
 
-    commit = load_commit (mgr, repo_id, version, id);
+    commit = load_commit (mgr, repo_id, version, id); // 从硬盘加载
     if (!commit)
         return NULL;
 
@@ -294,12 +295,12 @@ seaf_commit_manager_get_commit (SeafCommitManager *mgr,
 SeafCommit *
 seaf_commit_manager_get_commit_compatible (SeafCommitManager *mgr,
                                            const char *repo_id,
-                                           const char *id)
+                                           const char *id) // 获取提交，无冲突
 {
     SeafCommit *commit = NULL;
 
     /* First try version 1 layout. */
-    commit = seaf_commit_manager_get_commit (mgr, repo_id, 1, id);
+    commit = seaf_commit_manager_get_commit (mgr, repo_id, 1, id); // 获取版本1
     if (commit)
         return commit;
 
@@ -311,31 +312,31 @@ seaf_commit_manager_get_commit_compatible (SeafCommitManager *mgr,
 }
 
 static gint
-compare_commit_by_time (gconstpointer a, gconstpointer b, gpointer unused)
+compare_commit_by_time (gconstpointer a, gconstpointer b, gpointer unused) // 对比两者的提交时间
 {
     const SeafCommit *commit_a = a;
     const SeafCommit *commit_b = b;
 
     /* Latest commit comes first in the list. */
-    return (commit_b->ctime - commit_a->ctime);
+    return (commit_b->ctime - commit_a->ctime); // 返回时间差
 }
 
 inline static int
 insert_parent_commit (GList **list, GHashTable *hash,
                       const char *repo_id, int version,
-                      const char *parent_id, gboolean allow_truncate)
+                      const char *parent_id, gboolean allow_truncate) // 插入父提交（被用于拓扑遍历）
 {
     SeafCommit *p;
     char *key;
 
-    if (g_hash_table_lookup (hash, parent_id) != NULL)
+    if (g_hash_table_lookup (hash, parent_id) != NULL) // 检测父提交是否存在内存
         return 0;
 
     p = seaf_commit_manager_get_commit (seaf->commit_mgr,
                                         repo_id, version,
-                                        parent_id);
-    if (!p) {
-        if (allow_truncate)
+                                        parent_id); // 硬盘获取父提交
+    if (!p) { // 父提交不存在
+        if (allow_truncate) // 是否允许终止
             return 0;
         seaf_warning ("Failed to find commit %s\n", parent_id);
         return -1;
@@ -343,24 +344,24 @@ insert_parent_commit (GList **list, GHashTable *hash,
 
     *list = g_list_insert_sorted_with_data (*list, p,
                                            compare_commit_by_time,
-                                           NULL);
+                                           NULL); // 插入到有序队列
 
     key = g_strdup (parent_id);
-    g_hash_table_replace (hash, key, key);
+    g_hash_table_replace (hash, key, key); // 替换键
 
     return 0;
 }
 
-gboolean
-seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr,
-                                                     const char *repo_id,
-                                                     int version,
-                                                     const char *head,
-                                                     CommitTraverseFunc func,
-                                                     int limit,
-                                                     void *data,
-                                                     char **next_start_commit,
-                                                     gboolean skip_errors)
+gboolean // 拓扑遍历，有限次数
+seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr, // 管理器
+                                                     const char *repo_id, // 仓库id
+                                                     int version, // 版本
+                                                     const char *head, // 头
+                                                     CommitTraverseFunc func, // 遍历函数
+                                                     int limit, // 次数限制
+                                                     void *data, // 用户参数
+                                                     char **next_start_commit, // 下一次扫描的头
+                                                     gboolean skip_errors) // 是否忽略错误
 {
     SeafCommit *commit;
     GList *list = NULL;
@@ -368,10 +369,11 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr,
     gboolean ret = TRUE;
 
     /* A hash table for recording id of traversed commits. */
+    // 哈希表记录遍历的提交
     commit_hash = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
-    commit = seaf_commit_manager_get_commit (mgr, repo_id, version, head);
-    if (!commit) {
+    commit = seaf_commit_manager_get_commit (mgr, repo_id, version, head); // 获取提交
+    if (!commit) { // 获取失败
         seaf_warning ("Failed to find commit %s.\n", head);
         g_hash_table_destroy (commit_hash);
         return FALSE;
@@ -379,36 +381,36 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr,
 
     list = g_list_insert_sorted_with_data (list, commit,
                                            compare_commit_by_time,
-                                           NULL);
+                                           NULL); // 插入记录到有序队列
 
     char *key = g_strdup (commit->commit_id);
     g_hash_table_replace (commit_hash, key, key);
 
     int count = 0;
-    while (list) {
+    while (list) { // 队列
         gboolean stop = FALSE;
         commit = list->data;
-        list = g_list_delete_link (list, list);
+        list = g_list_delete_link (list, list); // 去掉队头
 
-        if (!func (commit, data, &stop)) {
-            if (!skip_errors) {
+        if (!func (commit, data, &stop)) { // 执行遍历函数
+            if (!skip_errors) { // 跳过错误
                 seaf_commit_unref (commit);
                 ret = FALSE;
                 goto out;
             }
         }
 
-        if (stop) {
+        if (stop) { // 停止
             seaf_commit_unref (commit);
             /* stop traverse down from this commit,
              * but not stop traversing the tree 
-             */
+             */ // 停止搜索父亲，但不停止搜索别的
             continue;
         }
 
-        if (commit->parent_id) {
+        if (commit->parent_id) { // 有父亲
             if (insert_parent_commit (&list, commit_hash, repo_id, version,
-                                      commit->parent_id, FALSE) < 0) {
+                                      commit->parent_id, FALSE) < 0) { // 插入父亲
                 if (!skip_errors) {
                     seaf_commit_unref (commit);
                     ret = FALSE;
@@ -416,9 +418,9 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr,
                 }
             }
         }
-        if (commit->second_parent_id) {
+        if (commit->second_parent_id) { // 有祖父
             if (insert_parent_commit (&list, commit_hash, repo_id, version,
-                                      commit->second_parent_id, FALSE) < 0) {
+                                      commit->second_parent_id, FALSE) < 0) { // 插入祖父
                 if (!skip_errors) {
                     seaf_commit_unref (commit);
                     ret = FALSE;
@@ -430,7 +432,7 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr,
 
         /* Stop when limit is reached and don't stop at unmerged branch.
          * If limit < 0, there is no limit;
-         */
+         */ // 限制
         if (limit > 0 && ++count >= limit && (!list || !list->next)) {
             break;
         }
@@ -440,6 +442,8 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr,
      * 1. list is empty, indicate scan end
      * 2. list only have one commit, as start for next scan
      */
+    // 1. 列表为空，结束扫描
+    // 2. 列表只包含一个提交，作为下一次扫描的开头
     if (list) {
         commit = list->data;
         if (next_start_commit) {
@@ -459,7 +463,7 @@ out:
     return ret;
 }
 
-static gboolean
+static gboolean // 拓扑遍历，同上
 traverse_commit_tree_common (SeafCommitManager *mgr,
                              const char *repo_id,
                              int version,
@@ -553,7 +557,7 @@ out:
     return ret;
 }
 
-gboolean
+gboolean // 封装遍历
 seaf_commit_manager_traverse_commit_tree (SeafCommitManager *mgr,
                                           const char *repo_id,
                                           int version,
@@ -591,11 +595,11 @@ seaf_commit_manager_commit_exists (SeafCommitManager *mgr,
         return TRUE;
 #endif
 
-    return seaf_obj_store_obj_exists (mgr->obj_store, repo_id, version, id);
+    return seaf_obj_store_obj_exists (mgr->obj_store, repo_id, version, id); // 判断对象存不存在
 }
 
 static json_t *
-commit_to_json_object (SeafCommit *commit)
+commit_to_json_object (SeafCommit *commit) // 结构体转json
 {
     json_t *object;
     
@@ -653,7 +657,7 @@ commit_to_json_object (SeafCommit *commit)
 }
 
 static SeafCommit *
-commit_from_json_object (const char *commit_id, json_t *object)
+commit_from_json_object (const char *commit_id, json_t *object) // json转结构体
 {
     SeafCommit *commit = NULL;
     const char *root_id;
@@ -812,7 +816,7 @@ commit_from_json_object (const char *commit_id, json_t *object)
     return commit;
 }
 
-static SeafCommit *
+static SeafCommit * // 从硬盘加载json
 load_commit (SeafCommitManager *mgr,
              const char *repo_id,
              int version,
@@ -860,7 +864,7 @@ out:
     return commit;
 }
 
-static int
+static int // 向硬盘保存json
 save_commit (SeafCommitManager *manager,
              const char *repo_id,
              int version,
@@ -904,7 +908,7 @@ save_commit (SeafCommitManager *manager,
     return 0;
 }
 
-static void
+static void // 删除json对象
 delete_commit (SeafCommitManager *mgr,
                const char *repo_id,
                int version,
@@ -913,7 +917,7 @@ delete_commit (SeafCommitManager *mgr,
     seaf_obj_store_delete_obj (mgr->obj_store, repo_id, version, id);
 }
 
-int
+int // 删除存储
 seaf_commit_manager_remove_store (SeafCommitManager *mgr,
                                   const char *store_id)
 {
