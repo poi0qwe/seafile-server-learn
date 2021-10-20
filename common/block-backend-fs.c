@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* 块操作后台；基于文件系统实现 */
+/* 块操作后台；基于文件系统的实现 */
 
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x500
