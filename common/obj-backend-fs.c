@@ -1,3 +1,5 @@
+/* 使用文件系统实现seafile对象后台 */
+
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x500
 #endif
@@ -20,14 +22,19 @@
 #define DEBUG_FLAG SEAFILE_DEBUG_OTHER
 #include "log.h"
 
-typedef struct FsPriv {
-    char *obj_dir;
-    int   dir_len;
+typedef struct FsPriv { // 文件系统私有域
+    char *obj_dir; // seafile对象目录
+    int   dir_len; // 目录长度
 } FsPriv;
 
-static void
-id_to_path (FsPriv *priv, const char *obj_id, char path[],
+static void // 将对象id转为目录
+id_to_path (FsPriv *priv, const char *obj_id, char path[], // 结果存储在path中
             const char *repo_id, int version)
+// seafile对象路径的完整构成：
+// [obj_dir]/
+// [repo_id]/
+// [obj_id前2位]/
+// [obj_id后38位]
 {
     char *pos = path;
     int n;
@@ -49,23 +56,23 @@ id_to_path (FsPriv *priv, const char *obj_id, char path[],
     memcpy (pos, obj_id + 2, 41 - 2);
 }
 
-static int
-obj_backend_fs_read (ObjBackend *bend,
-                     const char *repo_id,
-                     int version,
-                     const char *obj_id,
-                     void **data,
-                     int *len)
+static int // 读文件
+obj_backend_fs_read (ObjBackend *bend, // 后台结构体
+                     const char *repo_id, // 仓库id
+                     int version, // 版本
+                     const char *obj_id, // 对象id
+                     void **data, // 获得的对象数据
+                     int *len) // 获得的对象数据的长度
 {
     char path[SEAF_PATH_MAX];
     gsize tmp_len;
     GError *error = NULL;
 
-    id_to_path (bend->priv, obj_id, path, repo_id, version);
+    id_to_path (bend->priv, obj_id, path, repo_id, version); // 得到路径
 
     /* seaf_debug ("object path: %s\n", path); */
 
-    g_file_get_contents (path, (gchar**)data, &tmp_len, &error);
+    g_file_get_contents (path, (gchar**)data, &tmp_len, &error); // 获取文件内容
     if (error) {
 #ifdef MIGRATION
         g_clear_error (&error);
@@ -93,7 +100,7 @@ obj_backend_fs_read (ObjBackend *bend,
  * Flush operating system and disk caches for @fd.
  */
 static int
-fsync_obj_contents (int fd)
+fsync_obj_contents (int fd) // 重置系统和硬盘对fd的缓存
 {
 #ifdef __linux__
     /* Some file systems may not support fsync().
@@ -144,7 +151,7 @@ fsync_obj_contents (int fd)
  * This also makes sure the changes to @obj_path's parent folder
  * is flushed to disk.
  */
-static int
+static int // 重命名（由tmp_path变更为obj_path）并同步（将内容写入硬盘）
 rename_and_sync (const char *tmp_path, const char *obj_path)
 {
 #ifdef __linux__
@@ -165,7 +172,7 @@ rename_and_sync (const char *tmp_path, const char *obj_path)
     }
 
     /* Some file systems don't support fsyncing a directory. Just ignore the error.
-     */
+     */ // 有些操作系统不支持同步，直接忽略错误
     if (fsync (dir_fd) < 0) {
         if (errno != EINVAL) {
             seaf_warning ("Failed to fsync dir %s: %s.\n",
@@ -214,13 +221,13 @@ out:
 #endif
 }
 
-static int
-save_obj_contents (const char *path, const void *data, int len, gboolean need_sync)
-{
+static int // 保存seafile对象的内容（先保存至临时文件，再更名）
+save_obj_contents (const char *path, const void *data, int len, gboolean need_sync) // 路径、数据、是否同步（更新文件缓存至硬盘）
+{ // 先保存再更名的与直接重写的区别在于，如果目标文件存在且正在被使用，则写数据完全会丢失；先保存至临时文件则可以将写数据暂时存储，即便发生冲突也可保存写数据
     char tmp_path[SEAF_PATH_MAX];
     int fd;
 
-    snprintf (tmp_path, SEAF_PATH_MAX, "%s.XXXXXX", path);
+    snprintf (tmp_path, SEAF_PATH_MAX, "%s.XXXXXX", path); // 合成路径，表示临时文件
     fd = g_mkstemp (tmp_path);
     if (fd < 0) {
         seaf_warning ("[obj backend] Failed to open tmp file %s: %s.\n",
@@ -228,7 +235,7 @@ save_obj_contents (const char *path, const void *data, int len, gboolean need_sy
         return -1;
     }
 
-    if (writen (fd, data, len) < 0) {
+    if (writen (fd, data, len) < 0) { // 写数据
         seaf_warning ("[obj backend] Failed to write obj %s: %s.\n",
                       tmp_path, strerror(errno));
         return -1;
@@ -244,11 +251,11 @@ save_obj_contents (const char *path, const void *data, int len, gboolean need_sy
         return -1;
     }
 
-    if (need_sync) {
-        if (rename_and_sync (tmp_path, path) < 0)
+    if (need_sync) { // 如果同步
+        if (rename_and_sync (tmp_path, path) < 0) // 重命名并同步
             return -1;
-    } else {
-        if (g_rename (tmp_path, path) < 0) {
+    } else { // 无需同步
+        if (g_rename (tmp_path, path) < 0) { // 直接重命名
             seaf_warning ("[obj backend] Failed to rename %s: %s.\n",
                           path, strerror(errno));
             return -1;
@@ -258,7 +265,7 @@ save_obj_contents (const char *path, const void *data, int len, gboolean need_sy
     return 0;
 }
 
-static int
+static int // 创建父目录（同utils）
 create_parent_path (const char *path)
 {
     char *dir = g_path_get_dirname (path);
@@ -281,7 +288,7 @@ create_parent_path (const char *path)
     return 0;
 }
 
-static int
+static int // 后台写文件
 obj_backend_fs_write (ObjBackend *bend,
                       const char *repo_id,
                       int version,
@@ -292,19 +299,19 @@ obj_backend_fs_write (ObjBackend *bend,
 {
     char path[SEAF_PATH_MAX];
 
-    id_to_path (bend->priv, obj_id, path, repo_id, version);
+    id_to_path (bend->priv, obj_id, path, repo_id, version); // 合成路径
 
     /* GTimeVal s, e; */
 
     /* g_get_current_time (&s); */
 
-    if (create_parent_path (path) < 0) {
+    if (create_parent_path (path) < 0) { // 创建之
         seaf_warning ("[obj backend] Failed to create path for obj %s:%s.\n",
                       repo_id, obj_id);
         return -1;
     }
 
-    if (save_obj_contents (path, data, len, need_sync) < 0) {
+    if (save_obj_contents (path, data, len, need_sync) < 0) { // 保存之
         seaf_warning ("[obj backend] Failed to write obj %s:%s.\n",
                       repo_id, obj_id);
         return -1;
@@ -318,7 +325,7 @@ obj_backend_fs_write (ObjBackend *bend,
     return 0;
 }
 
-static gboolean
+static gboolean // 判断文件是否存在
 obj_backend_fs_exists (ObjBackend *bend,
                        const char *repo_id,
                        int version,
@@ -327,15 +334,15 @@ obj_backend_fs_exists (ObjBackend *bend,
     char path[SEAF_PATH_MAX];
     SeafStat st;
 
-    id_to_path (bend->priv, obj_id, path, repo_id, version);
+    id_to_path (bend->priv, obj_id, path, repo_id, version); // 合成路径
 
-    if (seaf_stat (path, &st) == 0)
+    if (seaf_stat (path, &st) == 0) // 判断是否存在
         return TRUE;
 
     return FALSE;
 }
 
-static void
+static void // 删除文件
 obj_backend_fs_delete (ObjBackend *bend,
                        const char *repo_id,
                        int version,
@@ -343,16 +350,16 @@ obj_backend_fs_delete (ObjBackend *bend,
 {
     char path[SEAF_PATH_MAX];
 
-    id_to_path (bend->priv, obj_id, path, repo_id, version);
-    g_unlink (path);
+    id_to_path (bend->priv, obj_id, path, repo_id, version); // 合成路径
+    g_unlink (path); // 删除
 }
 
-static int
+static int // 遍历
 obj_backend_fs_foreach_obj (ObjBackend *bend,
                             const char *repo_id,
                             int version,
-                            SeafObjFunc process,
-                            void *user_data)
+                            SeafObjFunc process, // 用户函数
+                            void *user_data) // 用户参数
 {
     FsPriv *priv = bend->priv;
     char *obj_dir = NULL;
@@ -367,11 +374,11 @@ obj_backend_fs_foreach_obj (ObjBackend *bend,
     if (version > 0)
         obj_dir = g_build_filename (priv->obj_dir, repo_id, NULL);
 #else
-    obj_dir = g_build_filename (priv->obj_dir, repo_id, NULL);
+    obj_dir = g_build_filename (priv->obj_dir, repo_id, NULL); // 获取仓库目录
 #endif
     dir_len = strlen (obj_dir);
 
-    dir1 = g_dir_open (obj_dir, 0, NULL);
+    dir1 = g_dir_open (obj_dir, 0, NULL); // 打开目录
     if (!dir1) {
         goto out;
     }
@@ -379,7 +386,7 @@ obj_backend_fs_foreach_obj (ObjBackend *bend,
     memcpy (path, obj_dir, dir_len);
     pos = path + dir_len;
 
-    while ((dname1 = g_dir_read_name(dir1)) != NULL) {
+    while ((dname1 = g_dir_read_name(dir1)) != NULL) { // 遍历一级目录
         snprintf (pos, sizeof(path) - dir_len, "/%s", dname1);
 
         dir2 = g_dir_open (path, 0, NULL);
@@ -388,7 +395,7 @@ obj_backend_fs_foreach_obj (ObjBackend *bend,
             continue;
         }
 
-        while ((dname2 = g_dir_read_name(dir2)) != NULL) {
+        while ((dname2 = g_dir_read_name(dir2)) != NULL) { // 遍历二级子目录（子目录名+文件名=obj_id）
             snprintf (obj_id, sizeof(obj_id), "%s%s", dname1, dname2);
             if (!process (repo_id, version, obj_id, user_data)) {
                 g_dir_close (dir2);
@@ -406,7 +413,7 @@ out:
     return ret;
 }
 
-static int
+static int // 复制
 obj_backend_fs_copy (ObjBackend *bend,
                      const char *src_repo_id,
                      int src_version,
@@ -417,13 +424,13 @@ obj_backend_fs_copy (ObjBackend *bend,
     char src_path[SEAF_PATH_MAX];
     char dst_path[SEAF_PATH_MAX];
 
-    id_to_path (bend->priv, obj_id, src_path, src_repo_id, src_version);
+    id_to_path (bend->priv, obj_id, src_path, src_repo_id, src_version); // 合成路径
     id_to_path (bend->priv, obj_id, dst_path, dst_repo_id, dst_version);
 
     if (g_file_test (dst_path, G_FILE_TEST_EXISTS))
         return 0;
 
-    if (create_parent_path (dst_path) < 0) {
+    if (create_parent_path (dst_path) < 0) { // 创建父目录
         seaf_warning ("Failed to create dst path %s for obj %s.\n",
                       dst_path, obj_id);
         return -1;
@@ -437,7 +444,7 @@ obj_backend_fs_copy (ObjBackend *bend,
     }
     return 0;
 #else
-    int ret = link (src_path, dst_path);
+    int ret = link (src_path, dst_path); // 复制
     if (ret < 0 && errno != EEXIST) {
         seaf_warning ("Failed to link %s to %s: %s.\n",
                       src_path, dst_path, strerror(errno));
@@ -447,7 +454,7 @@ obj_backend_fs_copy (ObjBackend *bend,
 #endif
 }
 
-static int
+static int // 移除存储
 obj_backend_fs_remove_store (ObjBackend *bend, const char *store_id)
 {
     FsPriv *priv = bend->priv;
@@ -456,7 +463,7 @@ obj_backend_fs_remove_store (ObjBackend *bend, const char *store_id)
     const char *dname1, *dname2;
     char *path1, *path2;
 
-    obj_dir = g_build_filename (priv->obj_dir, store_id, NULL);
+    obj_dir = g_build_filename (priv->obj_dir, store_id, NULL); // 获取仓库路径
 
     dir1 = g_dir_open (obj_dir, 0, NULL);
     if (!dir1) {
@@ -464,7 +471,7 @@ obj_backend_fs_remove_store (ObjBackend *bend, const char *store_id)
         return 0;
     }
 
-    while ((dname1 = g_dir_read_name(dir1)) != NULL) {
+    while ((dname1 = g_dir_read_name(dir1)) != NULL) { // 遍历一级目录
         path1 = g_build_filename (obj_dir, dname1, NULL);
 
         dir2 = g_dir_open (path1, 0, NULL);
@@ -476,7 +483,7 @@ obj_backend_fs_remove_store (ObjBackend *bend, const char *store_id)
             return -1;
         }
 
-        while ((dname2 = g_dir_read_name(dir2)) != NULL) {
+        while ((dname2 = g_dir_read_name(dir2)) != NULL) { // 遍历二级子目录
             path2 = g_build_filename (path1, dname2, NULL);
             g_unlink (path2);
             g_free (path2);
@@ -484,17 +491,17 @@ obj_backend_fs_remove_store (ObjBackend *bend, const char *store_id)
         g_dir_close (dir2);
 
         g_rmdir (path1);
-        g_free (path1);
+        g_free (path1); // 删文件
     }
 
     g_dir_close (dir1);
-    g_rmdir (obj_dir);
+    g_rmdir (obj_dir); // 删目录
     g_free (obj_dir);
 
     return 0;
 }
 
-ObjBackend *
+ObjBackend * // 创建新的后台结构体（链接，表示实现方法）
 obj_backend_fs_new (const char *seaf_dir, const char *obj_type)
 {
     ObjBackend *bend;

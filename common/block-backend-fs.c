@@ -284,7 +284,7 @@ block_backend_fs_foreach_block (BlockBackend *bend,
     if (version > 0)
         block_dir = g_build_filename (priv->block_dir, store_id, NULL);
 #else
-    block_dir = g_build_filename (priv->block_dir, store_id, NULL); // 获取路径所在的目录
+    block_dir = g_build_filename (priv->block_dir, store_id, NULL); // 获取路径所在的目录（block_dir/store_id）
 #endif
     dir_len = strlen (block_dir);
 
@@ -296,7 +296,7 @@ block_backend_fs_foreach_block (BlockBackend *bend,
     memcpy (path, block_dir, dir_len); // 复制到path中
     pos = path + dir_len;
 
-    while ((dname1 = g_dir_read_name(dir1)) != NULL) { // 遍历目录下的一级子目录
+    while ((dname1 = g_dir_read_name(dir1)) != NULL) { // 遍历一级目录
         snprintf (pos, sizeof(path) - dir_len, "/%s", dname1);
 
         dir2 = g_dir_open (path, 0, NULL); // 打开
@@ -381,7 +381,7 @@ block_backend_fs_remove_store (BlockBackend *bend, const char *store_id) // 清�
         return 0;
     }
 
-    while ((dname1 = g_dir_read_name(dir1)) != NULL) { // 遍历一级子目录
+    while ((dname1 = g_dir_read_name(dir1)) != NULL) { // 遍历一级目录
         path1 = g_build_filename (block_dir, dname1, NULL);
 
         dir2 = g_dir_open (path1, 0, NULL);

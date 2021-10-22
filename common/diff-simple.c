@@ -3,11 +3,11 @@
 #include "utils.h"
 #include "log.h"
 
-DiffEntry *
+DiffEntry * // 创建结构体
 diff_entry_new (char type, char status, unsigned char *sha1, const char *name)
 {
     DiffEntry *de = g_new0 (DiffEntry, 1);
-
+    // 赋值类型、状态、SHA1、名称
     de->type = type;
     de->status = status;
     memcpy (de->sha1, sha1, 20);
@@ -16,7 +16,7 @@ diff_entry_new (char type, char status, unsigned char *sha1, const char *name)
     return de;
 }
 
-DiffEntry *
+DiffEntry * // 释放结构体
 diff_entry_new_from_dirent (char type, char status,
                             SeafDirent *dent, const char *basedir)
 {
@@ -33,7 +33,7 @@ diff_entry_new_from_dirent (char type, char status,
     de->name = path;
     de->size = dent->size;
 
-#ifdef SEAFILE_CLIENT
+#ifdef SEAFILE_CLIENT // 对于客户端，还有以下内容需要释放
     if (type == DIFF_TYPE_COMMITS &&
         (status == DIFF_STATUS_ADDED ||
          status == DIFF_STATUS_MODIFIED ||
@@ -48,7 +48,7 @@ diff_entry_new_from_dirent (char type, char status,
     return de;
 }
 
-void
+void // 释放差异项
 diff_entry_free (DiffEntry *de)
 {
     g_free (de->name);
@@ -258,8 +258,8 @@ diff_trees (int n, const char *roots[], DiffOptions *opt)
 }
 
 typedef struct DiffData {
-    GList **results;
-    gboolean fold_dir_diff;
+    GList **results; // 差异结果
+    gboolean fold_dir_diff; // 是否仅顶级目录
 } DiffData;
 
 static int

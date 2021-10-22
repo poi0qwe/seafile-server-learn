@@ -1,3 +1,5 @@
+/* 使用riak(分布式键值存储)，实现seafile对象后台 */
+
 #include "common.h"
 #include "log.h"
 #include "obj-backend.h"

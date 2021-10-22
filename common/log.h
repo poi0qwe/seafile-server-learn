@@ -1,3 +1,4 @@
+/* 日志（全局一个日志） */
 #ifndef LOG_H
 #define LOG_H
 
@@ -13,8 +14,8 @@
 
 
 int seafile_log_init (const char *logfile, const char *ccnet_debug_level_str,
-                      const char *seafile_debug_level_str);
-int seafile_log_reopen ();
+                      const char *seafile_debug_level_str); // 初始化日志
+int seafile_log_reopen (); // 重新打开日志
 
 #ifndef WIN32
 #ifdef SEAFILE_SERVER
@@ -23,21 +24,22 @@ set_syslog_config (GKeyFile *config);
 #endif
 #endif
 
-void
+void // 设置标志位
 seafile_debug_set_flags_string (const gchar *flags_string);
 
 typedef enum
 {
-    SEAFILE_DEBUG_TRANSFER = 1 << 1,
-    SEAFILE_DEBUG_SYNC = 1 << 2,
-    SEAFILE_DEBUG_WATCH = 1 << 3, /* wt-monitor */
-    SEAFILE_DEBUG_HTTP = 1 << 4,  /* http server */
-    SEAFILE_DEBUG_MERGE = 1 << 5,
-    SEAFILE_DEBUG_OTHER = 1 << 6,
+    SEAFILE_DEBUG_TRANSFER = 1 << 1, // 传输debug
+    SEAFILE_DEBUG_SYNC = 1 << 2, // 同步debug
+    SEAFILE_DEBUG_WATCH = 1 << 3, /* wt-monitor */ // 监听debug
+    SEAFILE_DEBUG_HTTP = 1 << 4,  /* http server */ // HTTP debug
+    SEAFILE_DEBUG_MERGE = 1 << 5, // 合并debug
+    SEAFILE_DEBUG_OTHER = 1 << 6, // 其他debug
 } SeafileDebugFlags;
 
-void seafile_debug_impl (SeafileDebugFlags flag, const gchar *format, ...);
+void seafile_debug_impl (SeafileDebugFlags flag, const gchar *format, ...); // 实现Debug输出
 
+// 这个函数被封装为宏“seaf_debug”
 #ifdef DEBUG_FLAG
 
 #undef seaf_debug
