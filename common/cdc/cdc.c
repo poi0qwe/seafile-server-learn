@@ -49,7 +49,7 @@ static int default_write_chunk (CDCDescriptor *chunk_descr) // 默认写块文�
     int fd_chunk, ret;
 
     memset(chksum_str, 0, sizeof(chksum_str));
-    rawdata_to_hex (chunk_descr->checksum, chksum_str, CHECKSUM_LENGTH); // 将checksum转为HEX串
+    rawdata_to_hex (chunk_descr->checksum, chksum_str, CHECKSUM_LENGTH); // 将checksum转为HEX串（前20位）
     snprintf (filename, NAME_MAX_SZ, "./%s", chksum_str); // 设置文件名为checksum的HEX串，并限定其最大长度为`NAME_MAX_SZ-1`
     fd_chunk = g_open (filename, O_RDWR | O_CREAT | O_BINARY, 0644); // 创建文件，并写文件
     if (fd_chunk < 0) // 打开文件失败

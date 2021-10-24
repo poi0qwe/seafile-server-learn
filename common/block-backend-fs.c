@@ -25,7 +25,7 @@ struct _BHandle { // 句柄（block.h中定义其别名为BlockHandle，也就�
     char    block_id[41]; // 块id（HEX串）
     int     fd; // 文件标识符
     int     rw_type; // 读写类型
-    char    *tmp_file; // 临时文件，被用于写操作与提交操作
+    char    *tmp_file; // 临时文件路径，被用于写操作与提交操作
 };
 
 typedef struct { // 后台私有变量
@@ -422,7 +422,7 @@ get_block_path (BlockBackend *bend,
     char *pos = path;
     int n;
 
-#if defined MIGRATION
+#if defined MIGRATION // 迁移
     if (version > 0) {
         n = snprintf (path, SEAF_PATH_MAX, "%s/%s/", priv->block_dir, store_id);
         pos += n;

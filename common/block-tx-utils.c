@@ -114,7 +114,7 @@ send_encrypted_data (EVP_CIPHER_CTX *ctx,
 
 int
 send_encrypted_data_frame_end (EVP_CIPHER_CTX *ctx,
-                               evutil_socket_t data_fd)
+                               evutil_socket_t data_fd) // 发送帧结尾的剩余数据
 {
     char out_buf[ENC_BLOCK_SIZE];
     int out_len;

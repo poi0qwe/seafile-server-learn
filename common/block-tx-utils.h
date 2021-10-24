@@ -16,13 +16,14 @@
 
 #define BLOCK_PROTOCOL_VERSION 2 // 协议版本
 
-enum { // 状态
-    STATUS_OK = 0, // OK
-    STATUS_VERSION_MISMATCH, // 版本不匹配
-    STATUS_BAD_REQUEST, // 请求错误
-    STATUS_ACCESS_DENIED, // 拒绝访问
-    STATUS_INTERNAL_SERVER_ERROR, // 内部服务器错误
-    STATUS_NOT_FOUND, // 未找到
+enum
+{                                 // 状态
+    STATUS_OK = 0,                // OK
+    STATUS_VERSION_MISMATCH,      // 版本不匹配
+    STATUS_BAD_REQUEST,           // 请求错误
+    STATUS_ACCESS_DENIED,         // 拒绝访问
+    STATUS_INTERNAL_SERVER_ERROR, // 服务器内部错误
+    STATUS_NOT_FOUND,             // 未找到
 };
 
 struct _HandshakeRequest { // 握手请求
@@ -113,9 +114,9 @@ send_encrypted_data_frame_end (EVP_CIPHER_CTX *ctx, // 加密上下文
                                evutil_socket_t data_fd); // socket
 
 /* 接收帧 */
-typedef int (*FrameContentCB) (char *, int, void *); // 定义帧内容回调函数
+typedef int (*FrameContentCB) (char *, int, void *); // 定义帧内容回调函数（缓冲，长度，用户参数）
 
-typedef int (*FrameFragmentCB) (char *, int, int, void *); // 定义帧片段回调函数
+typedef int (*FrameFragmentCB) (char *, int, int, void *); // 定义帧片段回调函数（缓冲，长度，是否是帧尾，用户参数）
 
 typedef struct _FrameParser { // 帧转化器
     int enc_frame_len; // 若为零，则表示读取缓冲区中的所有数据；否则，读取固定长度的数据
@@ -137,7 +138,7 @@ typedef struct _FrameParser { // 帧转化器
 
     FrameContentCB content_cb;
     FrameFragmentCB fragment_cb;
-    void *cbarg;
+    void *cbarg; // 用户参数
 } FrameParser;
 
 /* Handle entire frame all at once.
