@@ -47,7 +47,7 @@ blocktx_encrypt_init (EVP_CIPHER_CTX **ctx,
 int
 blocktx_decrypt_init (EVP_CIPHER_CTX **ctx,
                       const unsigned char *key,
-                      const unsigned char *iv) // 结束加密
+                      const unsigned char *iv) // 初始化解密
 {
     int ret;
 
@@ -73,7 +73,7 @@ send_encrypted_data_frame_begin (evutil_socket_t data_fd,
 {
     /* Compute data size after encryption.
      * Block size is 16 bytes and AES always add one padding block.
-     */
+     */ // 计算加密后的长度enc_frame_len；每个加密块长为16字节，并且AES会在最后添加一个填充块
     int enc_frame_len;
 
     enc_frame_len = ((frame_len >> 4) + 1) << 4; // 计算加密后帧的长度
@@ -93,12 +93,12 @@ send_encrypted_data (EVP_CIPHER_CTX *ctx,
                      evutil_socket_t data_fd,
                      const void *buf, int len)
 {
-    char out_buf[len + ENC_BLOCK_SIZE];
+    char out_buf[len + ENC_BLOCK_SIZE]; // 申请足够的空间
     int out_len;
 
     if (EVP_EncryptUpdate (ctx,
                            (unsigned char *)out_buf, &out_len,
-                           (unsigned char *)buf, len) == 0) { // 加密帧
+                           (unsigned char *)buf, len) == 0) { // 加密
         seaf_warning ("Failed to encrypt data.\n");
         return -1;
     }
@@ -114,9 +114,9 @@ send_encrypted_data (EVP_CIPHER_CTX *ctx,
 
 int
 send_encrypted_data_frame_end (EVP_CIPHER_CTX *ctx,
-                               evutil_socket_t data_fd) // 发送帧结尾的剩余数据
+                               evutil_socket_t data_fd) // 发送结尾的剩余数据
 {
-    char out_buf[ENC_BLOCK_SIZE];
+    char out_buf[ENC_BLOCK_SIZE]; // 申请足够的空间
     int out_len;
 
     if (EVP_EncryptFinal_ex (ctx, (unsigned char *)out_buf, &out_len) == 0) { // 对剩余的数据进行加密
@@ -144,7 +144,7 @@ handle_frame_content (struct evbuffer *buf, FrameParser *parser)
     int ret = 0;
 
     struct evbuffer *input = buf;
-    // 获取I/O缓冲区长度
+    // 获取I/O缓冲区长度，若小于帧长，返回
     if (evbuffer_get_length (input) < parser->enc_frame_len)
         return 0;
     // 根据版本初始化解密
@@ -154,7 +154,7 @@ handle_frame_content (struct evbuffer *buf, FrameParser *parser)
         blocktx_decrypt_init (&ctx, parser->key_v2, parser->iv_v2);
     // 申请空间
     frame = g_malloc (parser->enc_frame_len);
-    out = g_malloc (parser->enc_frame_len + ENC_BLOCK_SIZE);
+    out = g_malloc (parser->enc_frame_len + ENC_BLOCK_SIZE); // 申请足够的空间
     // 从缓冲区读到frame中
     evbuffer_remove (input, frame, parser->enc_frame_len);
 
@@ -189,7 +189,7 @@ handle_one_frame (struct evbuffer *buf, FrameParser *parser)
 {
     struct evbuffer *input = buf;
 
-    if (!parser->enc_frame_len) { // 帧长度为0，表示读取全部缓冲区
+    if (!parser->enc_frame_len) { // 帧长度为0，未知帧长，先获取帧长
         /* Read the length of the encrypted frame first. */
         if (evbuffer_get_length (input) < sizeof(int)) // I/O缓冲区长度
             return 0;
@@ -202,7 +202,7 @@ handle_one_frame (struct evbuffer *buf, FrameParser *parser)
             return handle_frame_content (buf, parser); // 开始处理
 
         return 0;
-    } else { // 帧长度非零，表示读取固定长度
+    } else { // 帧长度非零，表示已知帧长
         return handle_frame_content (buf, parser);
     }
 }
@@ -220,7 +220,7 @@ handle_frame_fragment_content (struct evbuffer *buf, FrameParser *parser)
     fragment = g_malloc (fragment_len);
     evbuffer_remove (input, fragment, fragment_len); // 从缓冲区读取到fragment
 
-    out = g_malloc (fragment_len + ENC_BLOCK_SIZE);
+    out = g_malloc (fragment_len + ENC_BLOCK_SIZE); // 每次读input中的数据
 
     if (EVP_DecryptUpdate (parser->ctx,
                            (unsigned char *)out, &outlen,

@@ -12,33 +12,33 @@
 #include <sqlite3.h>
 #include <pthread.h>
 
-struct DBConnPool {
-    GPtrArray *connections;
-    pthread_mutex_t lock;
-    int max_connections;
+struct DBConnPool { // 数据库连接池
+    GPtrArray *connections; // 连接池
+    pthread_mutex_t lock; // 锁
+    int max_connections; // 最大连接数
 };
 typedef struct DBConnPool DBConnPool;
 
-struct SeafDB {
-    int type;
-    DBConnPool *pool;
+struct SeafDB { // 数据库
+    int type; // 类型
+    DBConnPool *pool; // 连接池
 };
 
-typedef struct DBConnection {
-    gboolean is_available;
-    DBConnPool *pool;
+typedef struct DBConnection { // 数据库连接
+    gboolean is_available; // 空闲
+    DBConnPool *pool; // 所在的连接池
 } DBConnection;
 
-struct SeafDBRow {
+struct SeafDBRow { // 行，无实现
     /* Empty */
 };
 
-struct SeafDBTrans {
-    DBConnection *conn;
-    gboolean need_close;
+struct SeafDBTrans { // 事务
+    DBConnection *conn; // 连接
+    gboolean need_close; // 是否需要关闭
 };
 
-typedef struct DBOperations {
+typedef struct DBOperations { // 定义了抽象的数据库基本操作，隐藏了实现细节
     DBConnection* (*get_connection)(SeafDB *db);
     void (*release_connection)(DBConnection *conn, gboolean need_close);
     int (*execute_sql_no_stmt)(DBConnection *conn, const char *sql);
@@ -53,9 +53,9 @@ typedef struct DBOperations {
     gint64 (*row_get_column_int64)(SeafDBRow *row, int idx);
 } DBOperations;
 
-static DBOperations db_ops;
+static DBOperations db_ops; // 静态对象，表示全局使用的数据库
 
-#ifdef HAVE_MYSQL
+#ifdef HAVE_MYSQL // mysql操作定义，略
 
 /* MySQL Ops */
 static SeafDB *
@@ -90,6 +90,7 @@ mysql_db_row_get_column_int64 (SeafDBRow *row, int idx);
 static gboolean
 mysql_db_connection_ping (DBConnection *vconn);
 
+// mysql连接池实现
 static DBConnPool *
 init_conn_pool_common (int max_connections)
 {
@@ -164,7 +165,7 @@ mysql_conn_pool_release_connection (DBConnection *conn, gboolean need_close)
 
 #define KEEPALIVE_INTERVAL 30
 static void *
-mysql_conn_keepalive (void *arg)
+mysql_conn_keepalive (void *arg) // 利用互斥锁进行数据库连接调度；每30s切换一次
 {
     DBConnPool *pool = arg;
     DBConnection *conn = NULL;
@@ -231,6 +232,7 @@ seaf_db_new_mysql (const char *host,
 #endif
 
 /* SQLite Ops */
+// sqlite操作定义
 static SeafDB *
 sqlite_db_new (const char *db_path);
 static DBConnection *
@@ -254,7 +256,7 @@ sqlite_db_row_get_column_int (SeafDBRow *row, int idx);
 static gint64
 sqlite_db_row_get_column_int64 (SeafDBRow *row, int idx);
 
-SeafDB *
+SeafDB * // 创建sqlite连接
 seaf_db_new_sqlite (const char *db_path, int max_connections)
 {
     SeafDB *db;
@@ -263,7 +265,7 @@ seaf_db_new_sqlite (const char *db_path, int max_connections)
     if (!db)
         return NULL;
     db->type = SEAF_DB_TYPE_SQLITE;
-
+    // 全局使用sqlite数据库
     db_ops.get_connection = sqlite_db_get_connection;
     db_ops.release_connection = sqlite_db_release_connection;
     db_ops.execute_sql_no_stmt = sqlite_db_execute_sql_no_stmt;
@@ -277,13 +279,15 @@ seaf_db_new_sqlite (const char *db_path, int max_connections)
     return db;
 }
 
-int
+// 封装
+// 对抽象数据库操作进一步封装，以适配本项目需求
+int // 返回类型
 seaf_db_type (SeafDB *db)
 {
     return db->type;
 }
 
-int
+int // 查询，非预编译
 seaf_db_query (SeafDB *db, const char *sql)
 {
     DBConnection *conn = db_ops.get_connection (db);
@@ -297,20 +301,20 @@ seaf_db_query (SeafDB *db, const char *sql)
     return ret;
 }
 
-gboolean
+gboolean // 检查存在，使用预编译
 seaf_db_check_for_existence (SeafDB *db, const char *sql, gboolean *db_err)
 {
     return seaf_db_statement_exists (db, sql, db_err, 0);
 }
 
-int
+int // 遍历，使用预编译
 seaf_db_foreach_selected_row (SeafDB *db, const char *sql, 
                               SeafDBRowFunc callback, void *data)
 {
     return seaf_db_statement_foreach_row (db, sql, callback, data, 0);
 }
 
-const char *
+const char * // 取字符串属性
 seaf_db_row_get_column_text (SeafDBRow *row, guint32 idx)
 {
     g_return_val_if_fail (idx < db_ops.row_get_column_count(row), NULL);
@@ -318,7 +322,7 @@ seaf_db_row_get_column_text (SeafDBRow *row, guint32 idx)
     return db_ops.row_get_column_string (row, idx);
 }
 
-int
+int // 取int属性
 seaf_db_row_get_column_int (SeafDBRow *row, guint32 idx)
 {
     g_return_val_if_fail (idx < db_ops.row_get_column_count(row), -1);
@@ -326,7 +330,7 @@ seaf_db_row_get_column_int (SeafDBRow *row, guint32 idx)
     return db_ops.row_get_column_int (row, idx);
 }
 
-gint64
+gint64 // 取int64属性
 seaf_db_row_get_column_int64 (SeafDBRow *row, guint32 idx)
 {
     g_return_val_if_fail (idx < db_ops.row_get_column_count(row), -1);
@@ -334,25 +338,25 @@ seaf_db_row_get_column_int64 (SeafDBRow *row, guint32 idx)
     return db_ops.row_get_column_int64 (row, idx);
 }
 
-int
+int // 取int，单值
 seaf_db_get_int (SeafDB *db, const char *sql)
 {
     return seaf_db_statement_get_int (db, sql, 0);
 }
 
-gint64
+gint64 // 取int64，单值
 seaf_db_get_int64 (SeafDB *db, const char *sql)
 {
     return seaf_db_statement_get_int64 (db, sql, 0);
 }
 
-char *
+char * // 取字符串，单值
 seaf_db_get_string (SeafDB *db, const char *sql)
 {
     return seaf_db_statement_get_string (db, sql, 0);
 }
 
-int
+int // 预编译sql查询
 seaf_db_statement_query (SeafDB *db, const char *sql, int n, ...)
 {
     int ret;
@@ -372,7 +376,7 @@ seaf_db_statement_query (SeafDB *db, const char *sql, int n, ...)
     return ret;
 }
 
-gboolean
+gboolean // 预编译sql存在
 seaf_db_statement_exists (SeafDB *db, const char *sql, gboolean *db_err, int n, ...)
 {
     int n_rows;
@@ -400,7 +404,7 @@ seaf_db_statement_exists (SeafDB *db, const char *sql, gboolean *db_err, int n, 
     }
 }
 
-int
+int // 预编译sql遍历
 seaf_db_statement_foreach_row (SeafDB *db, const char *sql,
                                SeafDBRowFunc callback, void *data,
                                int n, ...)
@@ -422,7 +426,7 @@ seaf_db_statement_foreach_row (SeafDB *db, const char *sql,
     return ret;
 }
 
-static gboolean
+static gboolean // 判断int回调
 get_int_cb (SeafDBRow *row, void *data)
 {
     int *pret = (int*)data;
@@ -432,7 +436,7 @@ get_int_cb (SeafDBRow *row, void *data)
     return FALSE;
 }
 
-int
+int // 取第一个int
 seaf_db_statement_get_int (SeafDB *db, const char *sql, int n, ...)
 {
     int ret = -1;
@@ -525,7 +529,7 @@ seaf_db_statement_get_string (SeafDB *db, const char *sql, int n, ...)
 }
 
 /* Transaction */
-
+// 事务操作
 SeafDBTrans *
 seaf_db_begin_transaction (SeafDB *db)
 {
@@ -642,7 +646,7 @@ seaf_db_row_get_column_count (SeafDBRow *row)
     return db_ops.row_get_column_count(row);
 }
 
-#ifdef HAVE_MYSQL
+#ifdef HAVE_MYSQL // mysql数据库操作具体实现，略
 
 /* MySQL DB */
 
@@ -1097,7 +1101,7 @@ mysql_db_row_get_column_int64 (SeafDBRow *vrow, int idx)
 /* SQLite thread synchronization rountines.
  * See https://www.sqlite.org/unlock_notify.html
  */
-
+// 以下是sqlite3_unlock_notify() API下实现的多连接调度
 typedef struct UnlockNotification {
         int fired;
         pthread_cond_t cond;
@@ -1178,6 +1182,7 @@ sqlite3_blocking_exec(sqlite3 *db, const char *sql, int (*callback)(void *, int,
     return rc;
 }
 
+// sqlite数据库操作的具体实现
 typedef struct SQLiteDB {
     SeafDB parent;
     char *db_path;

@@ -10,7 +10,7 @@
 /* Common structures and contents shared by the client and server. */
 // 客户端、服务端通用数据结构和内容
 
-/* We use AES 256 */ // AES加密
+/* We use AES 256 */ // AES 256加密
 #define ENC_KEY_SIZE 32 // 密钥长度
 #define ENC_BLOCK_SIZE 16 // 加密块长度
 
@@ -119,22 +119,22 @@ typedef int (*FrameContentCB) (char *, int, void *); // 定义帧内容回调函
 typedef int (*FrameFragmentCB) (char *, int, int, void *); // 定义帧片段回调函数（缓冲，长度，是否是帧尾，用户参数）
 
 typedef struct _FrameParser { // 帧转化器
-    int enc_frame_len; // 若为零，则表示读取缓冲区中的所有数据；否则，读取固定长度的数据
+    int enc_frame_len; // 帧长度
 
-    // 版本2的密钥和iv
+    // 版本1的密钥和初始向量
     unsigned char key[ENC_KEY_SIZE];
     unsigned char iv[ENC_BLOCK_SIZE];
     gboolean enc_init; // 是否已初始化加密
-    EVP_CIPHER_CTX *ctx; // 加密上下文
+    EVP_CIPHER_CTX *ctx; // 对称加密上下文
 
-    // 版本1的密钥和iv
+    // 版本2的密钥和初始向量
     unsigned char key_v2[ENC_KEY_SIZE];
     unsigned char iv_v2[ENC_BLOCK_SIZE];
 
     int version; // 版本
 
     /* Used when parsing fragments */
-    int remain;
+    int remain; // 剩余长度
 
     FrameContentCB content_cb;
     FrameFragmentCB fragment_cb;
@@ -144,14 +144,14 @@ typedef struct _FrameParser { // 帧转化器
 /* Handle entire frame all at once.
  * parser->content_cb() will be called after the entire frame is read.
  */
-// 处理帧，结束后调用转化器中的content_cb；不将解密上下文记录到转化器中
+// 处理帧，结束后调用转化器中的content_cb；
 int
 handle_one_frame (struct evbuffer *buf, FrameParser *parser);
 
 /* Handle a frame fragment by fragment.
  * parser->fragment_cb() will be called when any amount data is read.
  */
-// 处理片段，每处理一个片段调用一次转化器中的fragment_cb；将解密上下文记录到转化器中
+// 处理片段，每处理一个片段调用一次转化器中的fragment_cb；
 int
 handle_frame_fragments (struct evbuffer *buf, FrameParser *parser);
 

@@ -10,7 +10,7 @@ typedef struct _SeafBranch SeafBranch;
 struct _SeafBranch { // 分支结构
     int   ref; // 引用次数
     char *name; // 分支名
-    char  repo_id[37]; // 分支id
+    char  repo_id[37]; // 仓库id
     char  commit_id[41]; // 提交id
 };
 

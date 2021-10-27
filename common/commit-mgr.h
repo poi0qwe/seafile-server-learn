@@ -12,7 +12,7 @@ typedef struct _SeafCommit SeafCommit;
 
 #include "obj-store.h"
 
-struct _SeafCommit { // seafile提交
+struct _SeafCommit { // seafile提交对象
     struct _SeafCommitManager *manager; // 提交管理器
 
     int         ref; // 引用次数

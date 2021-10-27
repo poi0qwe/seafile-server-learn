@@ -27,7 +27,7 @@ seaf_obj_store_new (SeafileSession *seaf, const char *obj_type)
     if (!store)
         return NULL;
 
-    store->bend = obj_backend_fs_new (seaf->seaf_dir, obj_type); // 创建一个指定seafile目录、指定对象类型的后台
+    store->bend = obj_backend_fs_new (seaf->seaf_dir, obj_type); // 创建一个指定seafile目录、指定对象类型的后台（适配多端存储）
     if (!store->bend) {
         seaf_warning ("[Object store] Failed to load backend.\n");
         g_free (store);

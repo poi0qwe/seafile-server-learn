@@ -2,7 +2,7 @@
 
 此部分代码涵盖了一些实用的功能及数据结构，涉及到数据库、线程管理、网络等常用功能，目的是对这些常用内容进行封装以降低耦合度。
 
-以下是对c语言源码作出的简要分析，详细分析见【[github](https://github.com/poi0qwe/seafile-server-learn/tree/main/lib)】。（vala部分的用途暂时未知；py文件给出了需要生成的RPC方法的参数与返回值类型，不可读）
+以下是对c语言源码作出的简要分析，详细分析见【[github](https://github.com/poi0qwe/seafile-server-learn/tree/main/lib)】。（vala文件定义了所有[Seafile对象](https://github.com/poi0qwe/seafile-server-learn/tree/main/common/SEAFOBJ.md)；py文件给出了需要生成的RPC方法的参数与返回值类型，不包含具体实现）
 
 ## [include](https://github.com/poi0qwe/seafile-server-learn/blob/main/lib/include.h)
 
@@ -13,6 +13,8 @@
 实现了布隆过滤器，包括计数布隆过滤器。
 
 布隆过滤器通过比特向量和多次哈希的结果判断元素是否在集合中，而计数布隆过滤器只是将比特向量换成了计数器组。相较于哈希集合，布隆过滤器占用空间更小，而且不需要存储元素本身，更安全。
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/c3d8b762045542cf923d230d7f691be8.png?x-oss-process=image/watermark,type_ZHJvaWRzYW5zZmFsbGJhY2s,shadow_50,text_Q1NETiBAY3lrMDYyMA==,size_20,color_FFFFFF,t_70,g_se,x_16)
 
 布隆过滤器的功能及原理详见：【[维基百科 - 布隆过滤器](https://zh.wikipedia.org/zh-cn/%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8)】。
 

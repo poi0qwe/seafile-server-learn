@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* 块管理器（基于块后台，是块子系统的高级封装） */
+/* 块管理器（基于块后台，是块存储系统的最高层封装） */
 
 #ifndef SEAF_BLOCK_MGR_H
 #define SEAF_BLOCK_MGR_H

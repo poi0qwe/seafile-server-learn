@@ -104,65 +104,66 @@ static u_int64_t poly = 0xbfe6b8a5bf378d83LL;
     (p^j)<<8+g*j%(xshift-8)
     ```
 
-继续改写：
+继续改写，将$p$提出来：
 
 ```c++
-p ^ pg*j%(xshift-8)|j<<(xshift+8)
+(p<<8) ^ (g*j%(xshift-8)|j<<(xshift+8))
 ```
 
-然后预处理`pg*j%(xshift-8)|j<<(xshift+8)`并缓存至$\small T$，即可以$\small O(1)$计算第一部分。最后将其与第三部分结合，得到最终代码：
+所以预处理`g*j%(xshift-8)|j<<(xshift+8)`，就可以以$\small O(1)$计算第一部分。将前式缓存至$\small T$，并将其与第三部分结合，得到最终代码：
 
 ```c++
+// (p * a + m) % M
 (p<<8|m)^T[p>>xshift-8]
 ```
 
-代码如下：
+- ### 相关源码
 
-```c++
-int xshift, shift
-static inline char fls64(u_int64_t v); // 获取最高位的1在哪一位
-u_int64_t polymod(u_int64_t nh, u_int64_t nl, u_int64_t d); // (nh<<64|nl) % d
-void polymult(u_int64_t *php, u_int64_t *plp, u_int64_t x, u_int64_t y); // x * y = (php<<64|plp)
-static u_int64_t append8(u_int64_t p, u_char m) {
-    return ((p << 8) | m) ^ T[p >> shift];
-}
-static void calcT (u_int64_t poly) { // T
-    int j = 0;
-    xshift = fls64(poly) - 1;
-    shift = xshift - 8;
-    u_int64_t T1 = polymod(0, INT64 (1) << xshift, poly);
-    for (j = 0; j < 256; j++) {
-        T[j] = polymmult(j, T1, poly) | ((u_int64_t) j << xshift);
+    ```c++
+    int xshift, shift
+    static inline char fls64(u_int64_t v); // 获取最高位的1在哪一位
+    u_int64_t polymod(u_int64_t nh, u_int64_t nl, u_int64_t d); // (nh<<64|nl) % d
+    void polymult(u_int64_t *php, u_int64_t *plp, u_int64_t x, u_int64_t y); // x * y = (php<<64|plp)
+    static u_int64_t append8(u_int64_t p, u_char m) {
+        return ((p << 8) | m) ^ T[p >> shift];
     }
-}
-static void calcU(int size) // U
-{
-    int i;
-    u_int64_t sizeshift = 1;
-    for (i = 1; i < size; i++)
-        sizeshift = append8(sizeshift, 0);
-    for (i = 0; i < 256; i++)
-        U[i] = polymmult(i, sizeshift, poly);
-}
-void rabin_init(int len) { // 初始化
-    calcT(poly);
-    calcU(len);
-}
-unsigned int rabin_checksum(char *buf, int len) { // 首次计算，窗口长度为len
-    int i;
-    unsigned int sum = 0;
-    for (i = 0; i < len; ++i) {
-        sum = rabin_rolling_checksum (sum, len, 0, buf[i]);
+    static void calcT (u_int64_t poly) { // T
+        int j = 0;
+        xshift = fls64(poly) - 1;
+        shift = xshift - 8;
+        u_int64_t T1 = polymod(0, INT64 (1) << xshift, poly);
+        for (j = 0; j < 256; j++) {
+            T[j] = polymmult(j, T1, poly) | ((u_int64_t) j << xshift);
+        }
     }
-    return sum;
-}
-unsigned int rabin_rolling_checksum(unsigned int csum, int len,
-                                    char c1, char c2) { // 滚动计算
-    return append8(csum ^ U[(unsigned char)c1], c2); // (csum*a+c2-a^len*c1)%poly
-}
-```
+    static void calcU(int size) // U
+    {
+        int i;
+        u_int64_t sizeshift = 1;
+        for (i = 1; i < size; i++)
+            sizeshift = append8(sizeshift, 0);
+        for (i = 0; i < 256; i++)
+            U[i] = polymmult(i, sizeshift, poly);
+    }
+    void rabin_init(int len) { // 初始化
+        calcT(poly);
+        calcU(len);
+    }
+    unsigned int rabin_checksum(char *buf, int len) { // 首次计算，窗口长度为len
+        int i;
+        unsigned int sum = 0;
+        for (i = 0; i < len; ++i) {
+            sum = rabin_rolling_checksum (sum, len, 0, buf[i]);
+        }
+        return sum;
+    }
+    unsigned int rabin_rolling_checksum(unsigned int csum, int len,
+                                        char c1, char c2) { // 滚动计算
+        return append8(csum ^ U[(unsigned char)c1], c2); // (csum*a+c2-a^len*c1)%poly
+    }
+    ```
 
-> 在git中也用到了此技术，源码位于：[git/diff-delta](https://github.com/git/git/blob/142430338477d9d1bb25be66267225fb58498d92/diff-delta.c)，可作参考学习
+    > 在git中也用到了此技术，源码位于：[git/diff-delta](https://github.com/git/git/blob/142430338477d9d1bb25be66267225fb58498d92/diff-delta.c)，可作参考学习
 
 ## CDC
 
@@ -295,16 +296,18 @@ while (cur < tail) { // 一直扫描直到达到tail
 - 写数据与校验和
 
     ```c++
-    #define WRITE_CDC_BLOCK(block_sz, write_data)                \ // 写一个块（block_sz是块的大小，write_data表示是否写入硬盘）
+    // 写一个块（block_sz是块的大小，write_data表示是否写入硬盘）
+    #define WRITE_CDC_BLOCK(block_sz, write_data)                \
     do {                                                         \
         int _block_sz = (block_sz);                              \
-        chunk_descr.len = _block_sz;                             \ // 设置缓冲长度等于块的大小
+        chunk_descr.len = _block_sz;                             \ // 设置缓冲长度
         chunk_descr.offset = offset;                             \ // 设置偏移
-        ret = file_descr->write_block (file_descr->repo_id,      \ // 调用写块文件的方法（默认是default_write_chunk）
-                                    file_descr->version,      \
-                                    &chunk_descr,             \
-                crypt, chunk_descr.checksum,                     \
-                                    (write_data));            \
+        ret = file_descr->write_block (file_descr->repo_id,      \ // 写文件方法
+                                    file_descr->version,         \
+                                    &chunk_descr,                \
+                                    crypt,                       \
+                                    chunk_descr.checksum,        \
+                                    (write_data));               \
         if (ret < 0) {                                           \ // 写失败
             free (buf);                                          \
             g_warning ("CDC: failed to write chunk.\n");         \
@@ -312,14 +315,14 @@ while (cur < tail) { // 一直扫描直到达到tail
         }                                                        \
         memcpy (file_descr->blk_sha1s +                          \
                 file_descr->block_nr * CHECKSUM_LENGTH,          \
-                chunk_descr.checksum, CHECKSUM_LENGTH);          \ // 将checksum作为此块的sha1值，加入到blk_sha1s的末尾
-        SHA1_Update (&file_ctx, chunk_descr.checksum, 20);       \ // 更新SHA1至checksum
-        file_descr->block_nr++;                                  \ // 块数加一
-        offset += _block_sz;                                     \ // 偏移加上块的大小
-                                                                \
-        memmove (buf, buf + _block_sz, tail - _block_sz);        \ // 更新buf，把已处理过的移除（通过将未处理的拷贝到开头）
+                chunk_descr.checksum, CHECKSUM_LENGTH);          \ // 记录块的SHA1
+        SHA1_Update (&file_ctx, chunk_descr.checksum, 20);       \ // 更新SHA1
+        file_descr->block_nr++;                                  \ // 记录块数
+        offset += _block_sz;                                     \ // 记录偏移
+                                                                 \
+        memmove (buf, buf + _block_sz, tail - _block_sz);        \ // 更新buf
         tail = tail - _block_sz;                                 \
-        cur = 0;                                                 \ // tail，cur也随之进行相对移动
+        cur = 0;                                                 \ // 移动指针
     }while(0); // 表示执行一次
     ```
 
