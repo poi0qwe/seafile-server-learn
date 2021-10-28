@@ -29,7 +29,7 @@ typedef struct DBConnection { // 数据库连接
     DBConnPool *pool; // 所在的连接池
 } DBConnection;
 
-struct SeafDBRow { // 行，无实现
+struct SeafDBRow { // 行，无实现的虚指针
     /* Empty */
 };
 
@@ -165,7 +165,7 @@ mysql_conn_pool_release_connection (DBConnection *conn, gboolean need_close)
 
 #define KEEPALIVE_INTERVAL 30
 static void *
-mysql_conn_keepalive (void *arg) // 利用互斥锁进行数据库连接调度；每30s切换一次
+mysql_conn_keepalive (void *arg) // 利用互斥锁检查数据库连接；每30s执行一次
 {
     DBConnPool *pool = arg;
     DBConnection *conn = NULL;
@@ -1101,7 +1101,7 @@ mysql_db_row_get_column_int64 (SeafDBRow *vrow, int idx)
 /* SQLite thread synchronization rountines.
  * See https://www.sqlite.org/unlock_notify.html
  */
-// 以下是sqlite3_unlock_notify() API下实现的多连接调度
+// 以下是sqlite3_unlock_notify() API下实现的多连接并发调度
 typedef struct UnlockNotification {
         int fired;
         pthread_cond_t cond;
@@ -1130,12 +1130,12 @@ wait_for_unlock_notify(sqlite3 *db)
     pthread_mutex_init (&un.mutex, NULL);
     pthread_cond_init (&un.cond, NULL);
 
-    int rc = sqlite3_unlock_notify(db, unlock_notify_cb, (void *)&un);
+    int rc = sqlite3_unlock_notify(db, unlock_notify_cb, (void *)&un); // 并发通知
 
     if (rc == SQLITE_OK) {
         pthread_mutex_lock(&un.mutex);
-        if (!un.fired)
-            pthread_cond_wait (&un.cond, &un.mutex);
+        if (!un.fired) // 已经通知，跳过条件变量
+            pthread_cond_wait (&un.cond, &un.mutex); // 否则等待条件变量
         pthread_mutex_unlock(&un.mutex);
     }
 

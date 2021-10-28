@@ -156,8 +156,8 @@ struct timeval timeval_from_msec (uint64_t milliseconds); // 声明ms转timeval�
 
 size_t ccnet_strlcpy (char *dst, const char *src, size_t size); // 进行字符串复制
 
-void rawdata_to_hex (const unsigned char *rawdata, char *hex_str, int n_bytes); // 字符串转十六进制串
-int hex_to_rawdata (const char *hex_str, unsigned char *rawdata, int n_bytes); // 十六进制串转字符串
+void rawdata_to_hex (const unsigned char *rawdata, char *hex_str, int n_bytes); // 字节转十六进制串
+int hex_to_rawdata (const char *hex_str, unsigned char *rawdata, int n_bytes); // 十六进制串转字节
 
 #define sha1_to_hex(sha1, hex) rawdata_to_hex((sha1), (hex), 20) // 定义sha1转十六进制函数，其中sha1取20位
 #define hex_to_sha1(hex, sha1) hex_to_rawdata((hex), (sha1), 20) // 定义十六进制转sha1函数，其中十六进制取20位

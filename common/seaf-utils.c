@@ -1,3 +1,5 @@
+/* 数据库、临时文件实用封装 */
+
 #include "common.h"
 
 #include "log.h"
@@ -10,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-char *
+char * // 获取临时文件路径：tmp_file_dir/basename
 seafile_session_get_tmp_file_path (SeafileSession *session,
                                    const char *basename,
                                    char path[])
@@ -30,7 +32,7 @@ seafile_session_get_tmp_file_path (SeafileSession *session,
 #define SQLITE_DB_NAME "seafile.db"
 #define CCNET_DB "ccnet.db"
 
-static int
+static int // 连接sqlite
 sqlite_db_start (SeafileSession *session)
 {
     char *db_path;
@@ -43,7 +45,7 @@ sqlite_db_start (SeafileSession *session)
         max_connections = DEFAULT_MAX_CONNECTIONS;
 
     db_path = g_build_filename (session->seaf_dir, SQLITE_DB_NAME, NULL);
-    session->db = seaf_db_new_sqlite (db_path, max_connections);
+    session->db = seaf_db_new_sqlite (db_path, max_connections); // 直接以seaf_dir/seafile.db连接
     if (!session->db) {
         seaf_warning ("Failed to start sqlite db.\n");
         return -1;
@@ -56,10 +58,10 @@ sqlite_db_start (SeafileSession *session)
 
 #define MYSQL_DEFAULT_PORT 3306
 
-static int
+static int // 连接mysql
 mysql_db_start (SeafileSession *session)
 {
-    char *host, *user, *passwd, *db, *unix_socket, *charset;
+    char *host, *user, *passwd, *db, *unix_socket, *charset; // 各种mysql连接参数
     int port;
     gboolean use_ssl = FALSE;
     int max_connections = 0;
@@ -113,7 +115,7 @@ mysql_db_start (SeafileSession *session)
         max_connections = DEFAULT_MAX_CONNECTIONS;
     }
 
-    session->db = seaf_db_new_mysql (host, port, user, passwd, db, unix_socket, use_ssl, charset, max_connections);
+    session->db = seaf_db_new_mysql (host, port, user, passwd, db, unix_socket, use_ssl, charset, max_connections); // 连接mysql
     if (!session->db) {
         seaf_warning ("Failed to start mysql db.\n");
         return -1;
@@ -133,7 +135,7 @@ mysql_db_start (SeafileSession *session)
 
 #ifdef HAVE_POSTGRESQL
 
-static int
+static int // pgsql，略
 pgsql_db_start (SeafileSession *session)
 {
     char *host, *user, *passwd, *db, *unix_socket;
@@ -191,7 +193,7 @@ pgsql_db_start (SeafileSession *session)
 
 #endif
 
-int
+int // 加载seafile数据库配置（顺便连接数据库）
 load_database_config (SeafileSession *session)
 {
     char *type;
@@ -218,7 +220,7 @@ load_database_config (SeafileSession *session)
         seaf_warning ("Unsupported db type %s.\n", type);
         ret = -1;
     }
-    if (ret == 0) {
+    if (ret == 0) { // 启动成功，再看配置中是否要求创建表
         if (g_key_file_has_key (session->config, "database", "create_tables", NULL))
             create_tables = g_key_file_get_boolean (session->config,
                                                     "database", "create_tables", NULL);
@@ -230,12 +232,12 @@ load_database_config (SeafileSession *session)
     return ret;
 }
 
-static int
-ccnet_init_sqlite_database (SeafileSession *session)
+static int // 连接ccnet数据库，使用sqlite
+ccnet_init_sqlite_database(SeafileSession *session)
 {
     char *db_path;
 
-    db_path = g_build_path ("/", session->ccnet_dir, CCNET_DB, NULL);
+    db_path = g_build_path ("/", session->ccnet_dir, CCNET_DB, NULL); // 直接根据ccnet_dir/ccnet.db连接
     session->ccnet_db = seaf_db_new_sqlite (db_path, DEFAULT_MAX_CONNECTIONS);
     if (!session->ccnet_db) {
         seaf_warning ("Failed to open ccnet database.\n");
@@ -246,15 +248,15 @@ ccnet_init_sqlite_database (SeafileSession *session)
 
 #ifdef HAVE_MYSQL
 
-static int
-ccnet_init_mysql_database (SeafileSession *session)
+static int // 连接ccnet数据库，使用mysql
+ccnet_init_mysql_database(SeafileSession *session)
 {
     char *host, *user, *passwd, *db, *unix_socket, *charset;
     int port;
     gboolean use_ssl = FALSE;
     int max_connections = 0;
 
-    host = ccnet_key_file_get_string (session->ccnet_config, "Database", "HOST");
+    host = ccnet_key_file_get_string (session->ccnet_config, "Database", "HOST"); // 获取配置
     user = ccnet_key_file_get_string (session->ccnet_config, "Database", "USER");
     passwd = ccnet_key_file_get_string (session->ccnet_config, "Database", "PASSWD");
     db = ccnet_key_file_get_string (session->ccnet_config, "Database", "DB");
@@ -316,7 +318,7 @@ ccnet_init_mysql_database (SeafileSession *session)
 
 #endif
 
-int
+int // 加载ccnet数据库配置（顺便连接数据库）
 load_ccnet_database_config (SeafileSession *session)
 {
     int ret;

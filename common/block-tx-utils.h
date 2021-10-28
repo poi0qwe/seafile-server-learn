@@ -10,7 +10,7 @@
 /* Common structures and contents shared by the client and server. */
 // 客户端、服务端通用数据结构和内容
 
-/* We use AES 256 */ // AES 256加密
+/* We use AES 256 */ // AES-256加密
 #define ENC_KEY_SIZE 32 // 密钥长度
 #define ENC_BLOCK_SIZE 16 // 加密块长度
 

@@ -71,7 +71,7 @@ timeval_from_msec (uint64_t milliseconds) // ms转timeval
 }
 
 void
-rawdata_to_hex (const unsigned char *rawdata, char *hex_str, int n_bytes) // 将原始字符串转化为HEX字符串（8-bit -> 4-bit）
+rawdata_to_hex (const unsigned char *rawdata, char *hex_str, int n_bytes) // 将字节转化为HEX字符串（8-bit -> 4-bit）
 {
     static const char hex[] = "0123456789abcdef";
     int i;
@@ -96,7 +96,7 @@ static unsigned hexval(char c) // 获取HEX的整数值
 }
 
 int
-hex_to_rawdata (const char *hex_str, unsigned char *rawdata, int n_bytes) // 将HEX字符串转原始字符串（4-bit -> 8-bit）
+hex_to_rawdata (const char *hex_str, unsigned char *rawdata, int n_bytes) // 将HEX字符串转字节（4-bit -> 8-bit）
 {
     int i;
     for (i = 0; i < n_bytes; i++) {

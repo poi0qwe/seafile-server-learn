@@ -2,13 +2,19 @@
 
 广义上是指所有用到的结构体，狭义上是指本项目中几个重要概念所对应的结构体（类似于Java Bean）。你可以在`lib/*.vala`文件里看到项目中所有Seafile对象的定义。
 
+# 存储
+
 一些Seafile对象需要持久化至硬盘。它们的存储方式有两种，一种是非关系型存储，另一种是关系型存储。前者要求对象必须含有id。
+
+![请添加图片描述](https://img-blog.csdnimg.cn/d23865ff67914a479a519823187ea492.png)
 
 # 非关系型存储
 
 **非关系型存储主要被Seafile文件管理系统所使用。因为Seafile文件管理系统是分布式的，而非关系型存储能为分布式存储提供良好的基础。**
 
 相关代码的结构如下：
+
+
 
 <small>与块系统类似，并且有多种实现方式。</small>
 
@@ -99,14 +105,129 @@ Riak是一个分布式NoSQL数据存储系统，使用键值存储。
 
 - ### 对象的物理位置
 
+    ```s
+    [host]:[port] / [bucket] / [obj_id]
+    ```
+
+    通过主机、端口、桶名和对象id定位对象。
+
 - ### 对象存储操作的实现
 
-    对象的物理存储位置如下：
+    使用Riak的API实现，略。
 
 # 关系型存储
 
 部分Seafile对象采用的是关系型存储方式。相关代码的结构如下：
 
-使用的数据库可以是mysql，也可以是sqlite，二选一，默认后者。
+![请添加图片描述](https://img-blog.csdnimg.cn/5f8fe2b769d24c79b85218b19b590e1f.png)
+
+
+支持的数据库有：sqlite、mysql。编译时只能选择一个，默认为sqlite。（源码中还定义了pgsql，但未实现）
 
 使用这种方式存储的的Seafile对象包括：branch、group等。
+
+## 关系化对象
+
+- ### 对象的数据库和表
+
+    1. 数据库
+
+        依照对象从属的系统，规定对象被存储的数据库。整个项目有两个数据库：seafile（用于seafile系统）、ccnet（用于ccnet系统）。
+
+    2. 表
+
+        依照对象类型，创建表。如SeafBranch对象对应了Branch表。
+
+- ### 对象关系映射
+
+    读写对象本质上就是读写数据库。相关对象中借助数据库操作的抽象封装，对自身的各个属性实现了双向数据流动。
+    
+    项目中整个部分是面向过程的，没有统一的ORM。结构体中通过一个私有指针指向数据库上下文(SeafDB)，每次读写都对应了一个SQL和一个数据库操作。
+
+## 数据库操作
+
+- ### 上下文
+
+    - SeafDB：Seafile数据库上下文。
+    - SeafRow：Seafile数据库行上下文。
+    - SeafTrans：Seafile数据库事务上下文。
+    - CcnetDB、CcnetRow、CcnetTrans：对应Ccnet数据库。
+
+- ### 抽象操作
+
+    |操作|说明|
+    |:-|:-|
+    |获取连接|（根据配置）连接数据库并获取SeafDB。|
+    |释放连接|断开连接并释放SeafDB。|
+    |非预编译执行SQL|直接执行SQL。|
+    |执行SQL|输入SQL、参数列表，然后预编译并执行。|
+    |遍历行|输入SQL、参数列表，然后预编译并执行；随后遍历各个行，传递给回调函数|
+    |获取列数|获取一行中的列的数量|
+    |获取字符串属性|给定行，列的索引，获取字符串属性|
+    |获取整型属性|给定行，列的索引，获取整型属性|
+    |获取长整型属性|给定行，列的索引，获取长整型属性|
+
+- ### 操作封装
+
+    [seaf-db](https://github.com/poi0qwe/seafile-server-learn/blob/main/common/seaf-db.h)：对数据库抽象操作进行进一步的封装，以适配本项目的需求。
+
+    [seaf-utils](https://github.com/poi0qwe/seafile-server-learn/blob/main/common/seaf-utils.h)：提供了一些实用接口，包括根据会话配置创建数据库连接(SeafDB)。
+
+## 基于Mysql实现
+
+[seaf-db.c](https://github.com/poi0qwe/seafile-server-learn/blob/main/common/seaf-db.c)中通过Mysql API实现了数据库抽象操作。
+
+关于常规数据库操作的实现略，因为这些操作大都是对API进行的一定程度的封装。Mysql实现中主要关注的是多连接管理。因为当一个连建长时间无操作时，有可能断线，所以需要去反复发出ping信号，防止连接断开。项目中的实现方式是通过线程池进行线程调度。每个连接占有一个线程，这些线程通过一个互斥锁来争夺ping的资源。默认每30s进行一次ping。Mysql实现中不需要考虑数据库内的并发，因为Mysql已经实现了锁机制。
+
+## 基于Sqlite实现
+
+[seaf-db.c](https://github.com/poi0qwe/seafile-server-learn/blob/main/common/seaf-db.c)中通过sqlite API实现了数据库抽象操作。
+
+关于常规数据库操作的实现略，主要关注数据库并发处理。sqlite提供了一个解锁通知的接口`sqlite3_unlock_notify`，每次sqlite数据库解锁时，会调用用户提供的回调函数。因此并发机制主要靠用户实现。
+
+项目中主要通过`wait_for_unlock_notify`函数进行互斥并发，每次执行SQL前将调用该方法等待sqlite解锁：
+
+```c++
+typedef struct UnlockNotification { // 通知上下文
+        int fired; // 是否已经通知
+        pthread_cond_t cond; // 条件变量
+        pthread_mutex_t mutex; // 条件变量的互斥锁
+} UnlockNotification;
+
+static void
+unlock_notify_cb(void **ap_arg, int n_arg) // 回调函数
+{
+    int i;
+
+    for (i = 0; i < n_arg; i++) { // 遍历用户参数
+        UnlockNotification *p = (UnlockNotification *)ap_arg[i];
+        pthread_mutex_lock (&p->mutex);
+        p->fired = 1; // 表示已经通知
+        pthread_cond_signal (&p->cond); // 条件变量发送信号
+        pthread_mutex_unlock (&p->mutex);
+    }
+}
+
+static int
+wait_for_unlock_notify(sqlite3 *db)
+{
+    UnlockNotification un;
+    un.fired = 0;
+    pthread_mutex_init (&un.mutex, NULL);
+    pthread_cond_init (&un.cond, NULL);
+
+    int rc = sqlite3_unlock_notify(db, unlock_notify_cb, (void *)&un); // 并发通知
+
+    if (rc == SQLITE_OK) {
+        pthread_mutex_lock(&un.mutex);
+        if (!un.fired) // 若已经通知，则跳过等待
+            pthread_cond_wait (&un.cond, &un.mutex); // 否则等待条件变量发送信号
+        pthread_mutex_unlock(&un.mutex);
+    }
+
+    pthread_cond_destroy (&un.cond);
+    pthread_mutex_destroy (&un.mutex);
+
+    return rc;
+}
+```
