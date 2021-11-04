@@ -72,14 +72,14 @@ seaf_commit_new (const char *commit_id,
     SeafCommit *commit;
 
     g_return_val_if_fail (repo_id != NULL, NULL); // 需要有仓库
-    g_return_val_if_fail (root_id != NULL && creator_id != NULL, NULL); // 需要有根提交和作者
+    g_return_val_if_fail (root_id != NULL && creator_id != NULL, NULL); // 需要有根目录和作者
 
     commit = g_new0 (SeafCommit, 1); // 申请空间
 
     memcpy (commit->repo_id, repo_id, 36); // 设置仓库名
     commit->repo_id[36] = '\0';
     
-    memcpy (commit->root_id, root_id, 40); // 设置根
+    memcpy (commit->root_id, root_id, 40); // 设置根目录
     commit->root_id[40] = '\0';
 
     commit->creator_name = g_strdup (creator_name); // 设置作者名

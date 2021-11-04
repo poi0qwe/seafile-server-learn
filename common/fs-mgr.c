@@ -37,62 +37,62 @@ char *strcasestr (const char *haystack, const char *needle);
 
 #define SEAF_TMP_EXT "~"
 
-struct _SeafFSManagerPriv {
+struct _SeafFSManagerPriv { // 私有域
     /* GHashTable      *seafile_cache; */
-    GHashTable      *bl_cache;
+    GHashTable      *bl_cache; // 块表缓存
 };
 
-typedef struct SeafileOndisk {
+typedef struct SeafileOndisk { // Seafile字节流内容（版本0下的seafile对象存储）
     guint32          type;
     guint64          file_size;
     unsigned char    block_ids[0];
 } __attribute__((gcc_struct, __packed__)) SeafileOndisk;
 
-typedef struct DirentOndisk {
+typedef struct DirentOndisk { // Seafdirent字节流内容
     guint32 mode;
     char    id[40];
     guint32 name_len;
     char    name[0];
 } __attribute__((gcc_struct, __packed__)) DirentOndisk;
 
-typedef struct SeafdirOndisk {
+typedef struct SeafdirOndisk { // Seadir字节流内容
     guint32 type;
     char    dirents[0];
 } __attribute__((gcc_struct, __packed__)) SeafdirOndisk;
 
 #ifndef SEAFILE_SERVER
-uint32_t
+uint32_t // 计算分块大小
 calculate_chunk_size (uint64_t total_size);
-static int
+static int // 写seafile
 write_seafile (SeafFSManager *fs_mgr,
-               const char *repo_id, int version,
-               CDCFileDescriptor *cdc,
-               unsigned char *obj_sha1);
+               const char *repo_id, int version, // 仓库id及版本
+               CDCFileDescriptor *cdc, // 文件分块信息
+               unsigned char *obj_sha1); // seafile对象的SHA1
 #endif  /* SEAFILE_SERVER */
 
-SeafFSManager *
+SeafFSManager * // 创建新的文件系统管理器
 seaf_fs_manager_new (SeafileSession *seaf,
                      const char *seaf_dir)
 {
     SeafFSManager *mgr = g_new0 (SeafFSManager, 1);
 
-    mgr->seaf = seaf;
+    mgr->seaf = seaf; // 会话
 
-    mgr->obj_store = seaf_obj_store_new (seaf, "fs");
-    if (!mgr->obj_store) {
+    mgr->obj_store = seaf_obj_store_new (seaf, "fs"); // 对象存储
+    if (!mgr->obj_store) { // 出错
         g_free (mgr);
         return NULL;
     }
 
-    mgr->priv = g_new0(SeafFSManagerPriv, 1);
+    mgr->priv = g_new0(SeafFSManagerPriv, 1); // 私有域
 
     return mgr;
 }
 
-int
+int // 初始化管理器
 seaf_fs_manager_init (SeafFSManager *mgr)
 {
-    if (seaf_obj_store_init (mgr->obj_store) < 0) {
+    if (seaf_obj_store_init (mgr->obj_store) < 0) { // 初始化对象存储
         seaf_warning ("[fs mgr] Failed to init fs object store.\n");
         return -1;
     }
@@ -101,11 +101,11 @@ seaf_fs_manager_init (SeafFSManager *mgr)
 }
 
 #ifndef SEAFILE_SERVER
-static int
+static int // 查看块（打开块，解密块，然后写入到临时文件wfd中）
 checkout_block (const char *repo_id,
                 int version,
-                const char *block_id,
-                int wfd,
+                const char *block_id, // 块id
+                int wfd, // 临时文件句柄
                 SeafileCrypt *crypt)
 {
     SeafBlockManager *block_mgr = seaf->block_mgr;
@@ -117,21 +117,21 @@ checkout_block (const char *repo_id,
 
     handle = seaf_block_manager_open_block (block_mgr,
                                             repo_id, version,
-                                            block_id, BLOCK_READ);
+                                            block_id, BLOCK_READ); // 打开块，只读
     if (!handle) {
         seaf_warning ("Failed to open block %s\n", block_id);
         return -1;
     }
 
     /* first stat the block to get its size */
-    bmd = seaf_block_manager_stat_block_by_handle (block_mgr, handle);
+    bmd = seaf_block_manager_stat_block_by_handle (block_mgr, handle); // 获取统计信息
     if (!bmd) {
         seaf_warning ("can't stat block %s.\n", block_id);
         goto checkout_blk_error;
     }
 
     /* empty file, skip it */
-    if (bmd->size == 0) {
+    if (bmd->size == 0) { // 跳过空
         seaf_block_manager_close_block (block_mgr, handle);
         seaf_block_manager_block_handle_free (block_mgr, handle);
         return 0;
@@ -141,12 +141,12 @@ checkout_block (const char *repo_id,
 
     /* read the block to prepare decryption */
     if (seaf_block_manager_read_block (block_mgr, handle,
-                                       blk_content, bmd->size) != bmd->size) {
+                                       blk_content, bmd->size) != bmd->size) { // 读块
         seaf_warning ("Error when reading from block %s.\n", block_id);
         goto checkout_blk_error;
     }
 
-    if (crypt != NULL) {
+    if (crypt != NULL) { // 存在加密
 
         /* An encrypted block size must be a multiple of
            ENCRYPT_BLK_SIZE
@@ -156,20 +156,20 @@ checkout_block (const char *repo_id,
             goto checkout_blk_error;
         }
 
-        /* decrypt the block */
+        /* decrypt the block */ // 对块内容进行解密
         int ret = seafile_decrypt (&dec_out,
                                    &dec_out_len,
                                    blk_content,
                                    bmd->size,
                                    crypt);
 
-        if (ret != 0) {
+        if (ret != 0) { // 无法解密
             seaf_warning ("Decryt block %s failed. \n", block_id);
             goto checkout_blk_error;
         }
 
         /* write the decrypted content */
-        ret = writen (wfd, dec_out, dec_out_len);
+        ret = writen (wfd, dec_out, dec_out_len); // 写入解密内容
 
 
         if (ret !=  dec_out_len) {
@@ -183,7 +183,7 @@ checkout_block (const char *repo_id,
 
     } else {
         /* not an encrypted block */
-        if (writen(wfd, blk_content, bmd->size) != bmd->size) {
+        if (writen(wfd, blk_content, bmd->size) != bmd->size) { // 直接写入
             seaf_warning ("Failed to write the decryted block %s.\n",
                        block_id);
             goto checkout_blk_error;
@@ -192,8 +192,8 @@ checkout_block (const char *repo_id,
     }
 
     g_free (bmd);
-    seaf_block_manager_close_block (block_mgr, handle);
-    seaf_block_manager_block_handle_free (block_mgr, handle);
+    seaf_block_manager_close_block (block_mgr, handle); // 关闭块
+    seaf_block_manager_block_handle_free (block_mgr, handle); // 关闭句柄
     return 0;
 
 checkout_blk_error:
@@ -210,57 +210,57 @@ checkout_blk_error:
     return -1;
 }
 
-int
+int // 查看seafile内容（解密文件至file_path）
 seaf_fs_manager_checkout_file (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
                                const char *file_id,
                                const char *file_path,
                                guint32 mode,
-                               guint64 mtime,
-                               SeafileCrypt *crypt,
-                               const char *in_repo_path,
-                               const char *conflict_head_id,
-                               gboolean force_conflict,
-                               gboolean *conflicted,
-                               const char *email)
+                               guint64 mtime, // 最后修改时间
+                               SeafileCrypt *crypt, // 加密上下文
+                               const char *in_repo_path, // 仓库内路径
+                               const char *conflict_head_id, // 冲突头
+                               gboolean force_conflict, // 强制冲突
+                               gboolean *conflicted, //是否冲突
+                               const char *email) // 提供邮箱（用于生成冲突路径）
 {
-    Seafile *seafile;
+    Seafile *seafile; // seafile文件对象
     char *blk_id;
     int wfd;
     int i;
     char *tmp_path;
-    char *conflict_path;
+    char *conflict_path; // 冲突路径
 
     *conflicted = FALSE;
 
-    seafile = seaf_fs_manager_get_seafile (mgr, repo_id, version, file_id);
+    seafile = seaf_fs_manager_get_seafile (mgr, repo_id, version, file_id); // 获取seafile对象
     if (!seafile) {
         seaf_warning ("File %s does not exist.\n", file_id);
         return -1;
     }
 
-    tmp_path = g_strconcat (file_path, SEAF_TMP_EXT, NULL);
+    tmp_path = g_strconcat (file_path, SEAF_TMP_EXT, NULL); // 合成临时文件路径
 
     mode_t rmode = mode & 0100 ? 0777 : 0666;
     wfd = seaf_util_create (tmp_path, O_WRONLY | O_TRUNC | O_CREAT | O_BINARY,
-                            rmode & ~S_IFMT);
+                            rmode & ~S_IFMT); // 创建临时文件，只写
     if (wfd < 0) {
         seaf_warning ("Failed to open file %s for checkout: %s.\n",
                    tmp_path, strerror(errno));
         goto bad;
     }
 
-    for (i = 0; i < seafile->n_blocks; ++i) {
+    for (i = 0; i < seafile->n_blocks; ++i) { // 遍历所有块
         blk_id = seafile->blk_sha1s[i];
-        if (checkout_block (repo_id, version, blk_id, wfd, crypt) < 0)
+        if (checkout_block (repo_id, version, blk_id, wfd, crypt) < 0) // 检查每个块(解密这些块至临时文件)
             goto bad;
     }
 
-    close (wfd);
+    close (wfd); // 关临时文件
     wfd = -1;
 
-    if (force_conflict || seaf_util_rename (tmp_path, file_path) < 0) {
+    if (force_conflict || seaf_util_rename (tmp_path, file_path) < 0) { // 如果强制冲突，或重命名失败（说明file_path已存在）
         *conflicted = TRUE;
 
         /* XXX
@@ -271,18 +271,21 @@ seaf_fs_manager_checkout_file (SeafFSManager *mgr,
          * This is a quick and dirty hack. A cleaner solution should modifiy the
          * code of old syncing protocol to pass in email too. But I don't want to
          * spend more time on the nearly obsoleted code.
+         * 
+         * 在新的同步协议和HTTP同步中，文件在仓库创建前被检查。所以这个阶段我们还不能获取用户的邮箱，因此需要提供邮箱。
+         * 旧的协议中，检查文件时仓库总存在。这是一个快但脏的方法。一个更简洁的方法也需要邮箱，但作者不想花太多时间在已弃用的代码上。
          */
         const char *suffix = NULL;
         if (email) {
-            suffix = email;
+            suffix = email; // 后缀为邮箱
         } else {
             SeafRepo *repo = seaf_repo_manager_get_repo (seaf->repo_mgr, repo_id);
             if (!repo)
                 goto bad;
-            suffix = email;
+            suffix = email; // 否则根据仓库获取邮箱
         }
 
-        conflict_path = gen_conflict_path (file_path, suffix, (gint64)time(NULL));
+        conflict_path = gen_conflict_path (file_path, suffix, (gint64)time(NULL)); // 生成一个冲突路径
 
         seaf_warning ("Cannot update %s, creating conflict file %s.\n",
                       file_path, conflict_path);
@@ -292,12 +295,12 @@ seaf_fs_manager_checkout_file (SeafFSManager *mgr,
          * If this fails, fall back to checking out the server version
          * to the conflict file.
          */
-        if (seaf_util_rename (file_path, conflict_path) == 0) {
+        if (seaf_util_rename (file_path, conflict_path) == 0) { // 暂存至冲突路径
             if (seaf_util_rename (tmp_path, file_path) < 0) {
                 g_free (conflict_path);
                 goto bad;
             }
-        } else {
+        } else { // 继续冲突
             g_free (conflict_path);
             conflict_path = gen_conflict_path_wrapper (repo_id, version,
                                                        conflict_head_id, in_repo_path,
@@ -314,11 +317,11 @@ seaf_fs_manager_checkout_file (SeafFSManager *mgr,
         g_free (conflict_path);
     }
 
-    if (mtime > 0) {
+    if (mtime > 0) { // 如果有最后修改时间
         /* 
          * Set the checked out file mtime to what it has to be.
          */
-        if (seaf_set_file_time (file_path, mtime) < 0) {
+        if (seaf_set_file_time (file_path, mtime) < 0) { // 设置最后修改时间
             seaf_warning ("Failed to set mtime for %s.\n", file_path);
         }
     }
@@ -331,7 +334,7 @@ bad:
     if (wfd >= 0)
         close (wfd);
     /* Remove the tmp file if it still exists, in case that rename fails. */
-    seaf_util_unlink (tmp_path);
+    seaf_util_unlink (tmp_path); // 移除临时文件
     g_free (tmp_path);
     seafile_unref (seafile);
     return -1;
@@ -339,24 +342,24 @@ bad:
 
 #endif /* SEAFILE_SERVER */
 
-static void *
+static void * // 获取seafile字节流；版本0，结构体字节流
 create_seafile_v0 (CDCFileDescriptor *cdc, int *ondisk_size, char *seafile_id)
 {
     SeafileOndisk *ondisk;
 
-    rawdata_to_hex (cdc->file_sum, seafile_id, 20);
+    rawdata_to_hex (cdc->file_sum, seafile_id, 20); // 直接使用文件内容sha1作为文件id
 
-    *ondisk_size = sizeof(SeafileOndisk) + cdc->block_nr * 20;
+    *ondisk_size = sizeof(SeafileOndisk) + cdc->block_nr * 20; // 估算大小
     ondisk = (SeafileOndisk *)g_new0 (char, *ondisk_size);
 
-    ondisk->type = htonl(SEAF_METADATA_TYPE_FILE);
+    ondisk->type = htonl(SEAF_METADATA_TYPE_FILE); // 转字节序
     ondisk->file_size = hton64 (cdc->file_size);
-    memcpy (ondisk->block_ids, cdc->blk_sha1s, cdc->block_nr * 20);
+    memcpy (ondisk->block_ids, cdc->blk_sha1s, cdc->block_nr * 20); // 复制块索引
 
-    return ondisk;
+    return ondisk; // 返回字节流
 }
 
-static void *
+static void * // 获取seafile字节流；json字节流
 create_seafile_json (int repo_version,
                      CDCFileDescriptor *cdc,
                      int *ondisk_size,
@@ -388,14 +391,14 @@ create_seafile_json (int repo_version,
 
     /* The seafile object id is sha1 hash of the json object. */
     unsigned char sha1[20];
-    calculate_sha1 (sha1, data, *ondisk_size);
-    rawdata_to_hex (sha1, seafile_id, 20);
+    calculate_sha1 (sha1, data, *ondisk_size); // 字节流数据 -> sha1
+    rawdata_to_hex (sha1, seafile_id, 20); // 转HEX串
 
     json_decref (object);
     return data;
 }
 
-void
+void // 获取seafile对象SHA1；json字节流
 seaf_fs_manager_calculate_seafile_id_json (int repo_version,
                                            CDCFileDescriptor *cdc,
                                            guint8 *file_id_sha1)
@@ -431,31 +434,31 @@ seaf_fs_manager_calculate_seafile_id_json (int repo_version,
     free (data);
 }
 
-static int
-write_seafile (SeafFSManager *fs_mgr,
-               const char *repo_id,
-               int version,
-               CDCFileDescriptor *cdc,
-               unsigned char *obj_sha1)
+static int // 写seafile对象
+write_seafile (SeafFSManager *fs_mgr, // 管理器
+               const char *repo_id, // 仓库id
+               int version, // 版本
+               CDCFileDescriptor *cdc, // 文件分块信息
+               unsigned char *obj_sha1) // 对象SHA1（对象SHA1 <-> 对象id）
 {
     int ret = 0;
     char seafile_id[41];
     void *ondisk;
     int ondisk_size;
 
-    if (version > 0) {
-        ondisk = create_seafile_json (version, cdc, &ondisk_size, seafile_id);
+    if (version > 0) { // 版本大于0
+        ondisk = create_seafile_json (version, cdc, &ondisk_size, seafile_id); // 获取json字节流
 
         guint8 *compressed;
         int outlen;
 
-        if (seaf_obj_store_obj_exists (fs_mgr->obj_store, repo_id, version, seafile_id)) {
+        if (seaf_obj_store_obj_exists (fs_mgr->obj_store, repo_id, version, seafile_id)) { // 判断对象是否已存在
             ret = 0;
             free (ondisk);
             goto out;
         }
 
-        if (seaf_compress (ondisk, ondisk_size, &compressed, &outlen) < 0) {
+        if (seaf_compress (ondisk, ondisk_size, &compressed, &outlen) < 0) { // 将字节流压缩
             seaf_warning ("Failed to compress seafile obj %s:%s.\n",
                           repo_id, seafile_id);
             ret = -1;
@@ -464,20 +467,20 @@ write_seafile (SeafFSManager *fs_mgr,
         }
 
         if (seaf_obj_store_write_obj (fs_mgr->obj_store, repo_id, version, seafile_id,
-                                      compressed, outlen, FALSE) < 0)
+                                      compressed, outlen, FALSE) < 0) // 写对象
             ret = -1;
         g_free (compressed);
         free (ondisk);
-    } else {
-        ondisk = create_seafile_v0 (cdc, &ondisk_size, seafile_id);
-        if (seaf_obj_store_obj_exists (fs_mgr->obj_store, repo_id, version, seafile_id)) {
+    } else { // 版本0
+        ondisk = create_seafile_v0 (cdc, &ondisk_size, seafile_id); // 字节流
+        if (seaf_obj_store_obj_exists (fs_mgr->obj_store, repo_id, version, seafile_id)) { // 判断对象是否已存在
             ret = 0;
             g_free (ondisk);
             goto out;
         }
 
         if (seaf_obj_store_write_obj (fs_mgr->obj_store, repo_id, version, seafile_id,
-                                      ondisk, ondisk_size, FALSE) < 0)
+                                      ondisk, ondisk_size, FALSE) < 0) // 写
             ret = -1;
         g_free (ondisk);
     }
@@ -489,7 +492,7 @@ out:
     return ret;
 }
 
-uint32_t
+uint32_t // 计算分块大小（未被使用）
 calculate_chunk_size (uint64_t total_size)
 {
     const uint64_t GiB = 1073741824;
@@ -502,32 +505,32 @@ calculate_chunk_size (uint64_t total_size)
     return 1 * MiB;
 }
 
-static int
-do_write_chunk (const char *repo_id, int version,
-                uint8_t *checksum, const char *buf, int len)
+static int // 实际的写块（利用块管理器进行硬链接）
+do_write_chunk (const char *repo_id, int version, // 仓库、版本
+                uint8_t *checksum, const char *buf, int len) // checksum(HEX形式作为块id)，块内容及长度
 {
     SeafBlockManager *blk_mgr = seaf->block_mgr;
     char chksum_str[41];
     BlockHandle *handle;
     int n;
 
-    rawdata_to_hex (checksum, chksum_str, 20);
+    rawdata_to_hex (checksum, chksum_str, 20); // 作为块id
 
     /* Don't write if the block already exists. */
     if (seaf_block_manager_block_exists (seaf->block_mgr,
                                          repo_id, version,
-                                         chksum_str))
+                                         chksum_str)) // 块已存在
         return 0;
 
     handle = seaf_block_manager_open_block (blk_mgr,
                                             repo_id, version,
-                                            chksum_str, BLOCK_WRITE);
+                                            chksum_str, BLOCK_WRITE); // 写模式打开块
     if (!handle) {
         seaf_warning ("Failed to open block %s.\n", chksum_str);
         return -1;
     }
 
-    n = seaf_block_manager_write_block (blk_mgr, handle, buf, len);
+    n = seaf_block_manager_write_block (blk_mgr, handle, buf, len); // 写
     if (n < 0) {
         seaf_warning ("Failed to write chunk %s.\n", chksum_str);
         seaf_block_manager_close_block (blk_mgr, handle);
@@ -535,13 +538,13 @@ do_write_chunk (const char *repo_id, int version,
         return -1;
     }
 
-    if (seaf_block_manager_close_block (blk_mgr, handle) < 0) {
+    if (seaf_block_manager_close_block (blk_mgr, handle) < 0) { // 关
         seaf_warning ("failed to close block %s.\n", chksum_str);
         seaf_block_manager_block_handle_free (blk_mgr, handle);
         return -1;
     }
 
-    if (seaf_block_manager_commit_block (blk_mgr, handle) < 0) {
+    if (seaf_block_manager_commit_block (blk_mgr, handle) < 0) { // 提交
         seaf_warning ("failed to commit chunk %s.\n", chksum_str);
         seaf_block_manager_block_handle_free (blk_mgr, handle);
         return -1;
@@ -552,7 +555,7 @@ do_write_chunk (const char *repo_id, int version,
 }
 
 /* write the chunk and store its checksum */
-int
+int // Seafile文件系统写块文件方法（替换默认写块文件方法）
 seafile_write_chunk (const char *repo_id,
                      int version,
                      CDCDescriptor *chunk,
@@ -565,7 +568,7 @@ seafile_write_chunk (const char *repo_id,
 
     /* Encrypt before write to disk if needed, and we don't encrypt
      * empty files. */
-    if (crypt != NULL && chunk->len) {
+    if (crypt != NULL && chunk->len) { // 进行加密，要求非空文件
         char *encrypted_buf = NULL;         /* encrypted output */
         int enc_len = -1;                /* encrypted length */
 
@@ -573,7 +576,7 @@ seafile_write_chunk (const char *repo_id,
                                &enc_len,      /* output len */
                                chunk->block_buf, /* input */
                                chunk->len,       /* input len */
-                               crypt);
+                               crypt); // 进行加密
         if (ret != 0) {
             seaf_warning ("Error: failed to encrypt block\n");
             return -1;
@@ -581,12 +584,12 @@ seafile_write_chunk (const char *repo_id,
 
         SHA1_Init (&ctx);
         SHA1_Update (&ctx, encrypted_buf, enc_len);
-        SHA1_Final (checksum, &ctx);
+        SHA1_Final (checksum, &ctx); // 计算出checksum
 
         if (write_data)
             ret = do_write_chunk (repo_id, version, checksum, encrypted_buf, enc_len);
         g_free (encrypted_buf);
-    } else {
+    } else { // 不进行加密
         /* not a encrypted repo, go ahead */
         SHA1_Init (&ctx);
         SHA1_Update (&ctx, chunk->block_buf, chunk->len);
@@ -599,13 +602,13 @@ seafile_write_chunk (const char *repo_id,
     return ret;
 }
 
-static void
+static void // 对空文件创建文件分块信息
 create_cdc_for_empty_file (CDCFileDescriptor *cdc)
 {
     memset (cdc, 0, sizeof(CDCFileDescriptor));
 }
 
-#if defined SEAFILE_SERVER && defined FULL_FEATURE
+#if defined SEAFILE_SERVER && defined FULL_FEATURE // 全部功能（多线程分块）
 
 #define FIXED_BLOCK_SIZE (1<<20)
 
@@ -769,12 +772,12 @@ out:
 #define CDC_MIN_BLOCK_SIZE (6 * (1 << 20)) /* 6MB */
 #define CDC_MAX_BLOCK_SIZE (10 * (1 << 20)) /* 10MB */
 
-int
+int // 对文件分块并索引
 seaf_fs_manager_index_blocks (SeafFSManager *mgr,
                               const char *repo_id,
                               int version,
-                              const char *file_path,
-                              unsigned char sha1[],
+                              const char *file_path, // 文件的路径
+                              unsigned char sha1[], // 文件总SHA1
                               gint64 *size,
                               SeafileCrypt *crypt,
                               gboolean write_data,
@@ -798,7 +801,7 @@ seaf_fs_manager_index_blocks (SeafFSManager *mgr,
     } else {
         memset (&cdc, 0, sizeof(cdc));
 #if defined SEAFILE_SERVER && defined FULL_FEATURE
-        if (use_cdc || version == 0) {
+        if (use_cdc || version == 0) { // CDC
             cdc.block_sz = CDC_AVERAGE_BLOCK_SIZE;
             cdc.block_min_sz = CDC_MIN_BLOCK_SIZE;
             cdc.block_max_sz = CDC_MAX_BLOCK_SIZE;
@@ -809,7 +812,7 @@ seaf_fs_manager_index_blocks (SeafFSManager *mgr,
                 seaf_warning ("Failed to chunk file with CDC.\n");
                 return -1;
             }
-        } else {
+        } else { // 定长分块
             memcpy (cdc.repo_id, repo_id, 36);
             cdc.version = version;
             cdc.file_size = sb.st_size;
@@ -825,13 +828,13 @@ seaf_fs_manager_index_blocks (SeafFSManager *mgr,
         cdc.write_block = seafile_write_chunk;
         memcpy (cdc.repo_id, repo_id, 36);
         cdc.version = version;
-        if (filename_chunk_cdc (file_path, &cdc, crypt, write_data, indexed) < 0) {
+        if (filename_chunk_cdc (file_path, &cdc, crypt, write_data, indexed) < 0) { // 根据路径进行分块
             seaf_warning ("Failed to chunk file with CDC.\n");
             return -1;
         }
 #endif
 
-        if (write_data && write_seafile (mgr, repo_id, version, &cdc, sha1) < 0) {
+        if (write_data && write_seafile (mgr, repo_id, version, &cdc, sha1) < 0) { // 若写数据，顺便写seafile对象
             g_free (cdc.blk_sha1s);
             seaf_warning ("Failed to write seafile for %s.\n", file_path);
             return -1;
@@ -846,7 +849,7 @@ seaf_fs_manager_index_blocks (SeafFSManager *mgr,
     return 0;
 }
 
-static int
+static int // 检查并对块硬链接
 check_and_write_block (const char *repo_id, int version,
                        const char *path, unsigned char *sha1, const char *block_id)
 {
@@ -855,7 +858,7 @@ check_and_write_block (const char *repo_id, int version,
     GError *error = NULL;
     int ret = 0;
 
-    if (!g_file_get_contents (path, &content, &len, &error)) {
+    if (!g_file_get_contents (path, &content, &len, &error)) { // 获取路径中的内容
         if (error) {
             seaf_warning ("Failed to read %s: %s.\n", path, error->message);
             g_clear_error (&error);
@@ -868,15 +871,15 @@ check_and_write_block (const char *repo_id, int version,
 
     SHA1_Init (&block_ctx);
     SHA1_Update (&block_ctx, content, len);
-    SHA1_Final (checksum, &block_ctx);
+    SHA1_Final (checksum, &block_ctx); // 计算块文件SHA1
 
-    if (memcmp (checksum, sha1, 20) != 0) {
+    if (memcmp (checksum, sha1, 20) != 0) { // 不匹配
         seaf_warning ("Block id %s:%s doesn't match content.\n", repo_id, block_id);
         ret = -1;
         goto out;
     }
 
-    if (do_write_chunk (repo_id, version, sha1, content, len) < 0) {
+    if (do_write_chunk (repo_id, version, sha1, content, len) < 0) { // 开始硬连接
         ret = -1;
         goto out;
     }
@@ -886,7 +889,7 @@ out:
     return ret;
 }
 
-static int
+static int // 给定一个块表，检查并硬链接；同时记录这些块的SHA1表和总SHA1至文件分块信息
 check_and_write_file_blocks (CDCFileDescriptor *cdc, GList *paths, GList *blockids)
 {
     GList *ptr, *q;
@@ -894,30 +897,30 @@ check_and_write_file_blocks (CDCFileDescriptor *cdc, GList *paths, GList *blocki
     int ret = 0;
 
     SHA1_Init (&file_ctx);
-    for (ptr = paths, q = blockids; ptr; ptr = ptr->next, q = q->next) {
+    for (ptr = paths, q = blockids; ptr; ptr = ptr->next, q = q->next) { // 遍历各块的路径和id
         char *path = ptr->data;
         char *blk_id = q->data;
         unsigned char sha1[20];
 
-        hex_to_rawdata (blk_id, sha1, 20);
-        ret = check_and_write_block (cdc->repo_id, cdc->version, path, sha1, blk_id);
+        hex_to_rawdata (blk_id, sha1, 20); // SHA1和块id的关系：前者是8bit（字节串），后者是4bit（HEX串）
+        ret = check_and_write_block (cdc->repo_id, cdc->version, path, sha1, blk_id); // 进行硬连接
         if (ret < 0)
             goto out;
 
         memcpy (cdc->blk_sha1s + cdc->block_nr * CHECKSUM_LENGTH,
-                sha1, CHECKSUM_LENGTH);
+                sha1, CHECKSUM_LENGTH); // 将算得的SHA1填充到文件分块信息的blk_sha1s表中
         cdc->block_nr++;
 
-        SHA1_Update (&file_ctx, sha1, 20);
+        SHA1_Update (&file_ctx, sha1, 20); // 更新文件总SHA1
     }
 
-    SHA1_Final (cdc->file_sum, &file_ctx);
+    SHA1_Final (cdc->file_sum, &file_ctx); // 总SHA1
 
 out:
     return ret;
 }
 
-static int
+static int // 校验已存在的块；同时记录这些块的SHA1表和总SHA1至文件分块信息
 check_existed_file_blocks (CDCFileDescriptor *cdc, GList *blockids)
 {
     GList *q;
@@ -929,7 +932,7 @@ check_existed_file_blocks (CDCFileDescriptor *cdc, GList *blockids)
         char *blk_id = q->data;
         unsigned char sha1[20];
 
-        if (!seaf_block_manager_block_exists (
+        if (!seaf_block_manager_block_exists ( // 块已存在
                 seaf->block_mgr, cdc->repo_id, cdc->version, blk_id)) {
             ret = -1;
             goto out;
@@ -937,10 +940,10 @@ check_existed_file_blocks (CDCFileDescriptor *cdc, GList *blockids)
 
         hex_to_rawdata (blk_id, sha1, 20);
         memcpy (cdc->blk_sha1s + cdc->block_nr * CHECKSUM_LENGTH,
-                sha1, CHECKSUM_LENGTH);
+                sha1, CHECKSUM_LENGTH); // 更新文件分块信息中的SHA1
         cdc->block_nr++;
 
-        SHA1_Update (&file_ctx, sha1, 20);
+        SHA1_Update (&file_ctx, sha1, 20); // 更新文件总SHA1
     }
 
     SHA1_Final (cdc->file_sum, &file_ctx);
@@ -949,7 +952,7 @@ out:
     return ret;
 }
 
-static int
+static int // 初始化文件分块信息
 init_file_cdc (CDCFileDescriptor *cdc,
                const char *repo_id, int version,
                int block_nr, gint64 file_size)
@@ -970,7 +973,7 @@ init_file_cdc (CDCFileDescriptor *cdc,
     return 0;
 }
 
-int
+int // 根据块的路径进行索引（检查并硬链接，然后生成seafile对象）
 seaf_fs_manager_index_file_blocks (SeafFSManager *mgr,
                                    const char *repo_id,
                                    int version,
@@ -982,25 +985,25 @@ seaf_fs_manager_index_file_blocks (SeafFSManager *mgr,
     int ret = 0;
     CDCFileDescriptor cdc;
 
-    if (!paths) {
+    if (!paths) { // 空文件
         /* handle empty file. */
         memset (sha1, 0, 20);
         create_cdc_for_empty_file (&cdc);
     } else {
         int block_nr = g_list_length (paths);
 
-        if (init_file_cdc (&cdc, repo_id, version, block_nr, file_size) < 0) {
+        if (init_file_cdc (&cdc, repo_id, version, block_nr, file_size) < 0) { // 初始化分块信息
             ret = -1;
             goto out;
         }
 
-        if (check_and_write_file_blocks (&cdc, paths, blockids) < 0) {
+        if (check_and_write_file_blocks (&cdc, paths, blockids) < 0) { // 硬链接，并更新SHA1表及总SHA1
             seaf_warning ("Failed to check and write file blocks.\n");
             ret = -1;
             goto out;
         }
 
-        if (write_seafile (mgr, repo_id, version, &cdc, sha1) < 0) {
+        if (write_seafile (mgr, repo_id, version, &cdc, sha1) < 0) { // 生成seafile对象并存入
             seaf_warning ("Failed to write seafile.\n");
             ret = -1;
             goto out;
@@ -1014,7 +1017,7 @@ out:
     return ret;
 }
 
-int
+int // 根据块的路径进行索引（只检查并硬链接）
 seaf_fs_manager_index_raw_blocks (SeafFSManager *mgr,
                                   const char *repo_id,
                                   int version,
@@ -1033,7 +1036,7 @@ seaf_fs_manager_index_raw_blocks (SeafFSManager *mgr,
         unsigned char sha1[20];
 
         hex_to_rawdata (blk_id, sha1, 20);
-        ret = check_and_write_block (repo_id, version, path, sha1, blk_id);
+        ret = check_and_write_block (repo_id, version, path, sha1, blk_id); // 仅硬连接
         if (ret < 0)
             break;
 
@@ -1042,7 +1045,7 @@ seaf_fs_manager_index_raw_blocks (SeafFSManager *mgr,
     return ret;
 }
 
-int
+int // 重新进行索引（只检查）（若块不存在，则报错）
 seaf_fs_manager_index_existed_file_blocks (SeafFSManager *mgr,
                                            const char *repo_id,
                                            int version,
@@ -1059,18 +1062,18 @@ seaf_fs_manager_index_existed_file_blocks (SeafFSManager *mgr,
         memset (sha1, 0, 20);
         create_cdc_for_empty_file (&cdc);
     } else {
-        if (init_file_cdc (&cdc, repo_id, version, block_nr, file_size) < 0) {
+        if (init_file_cdc (&cdc, repo_id, version, block_nr, file_size) < 0) { // 初始化CDC
             ret = -1;
             goto out;
         }
 
-        if (check_existed_file_blocks (&cdc, blockids) < 0) {
+        if (check_existed_file_blocks (&cdc, blockids) < 0) { // 检查
             seaf_warning ("Failed to check and write file blocks.\n");
             ret = -1;
             goto out;
         }
 
-        if (write_seafile (mgr, repo_id, version, &cdc, sha1) < 0) {
+        if (write_seafile (mgr, repo_id, version, &cdc, sha1) < 0) { // 写seafile
             seaf_warning ("Failed to write seafile.\n");
             ret = -1;
             goto out;
@@ -1084,13 +1087,13 @@ out:
     return ret;
 }
 
-void
+void //
 seafile_ref (Seafile *seafile)
 {
     ++seafile->ref_count;
 }
 
-static void
+static void 增加引用
 seafile_free (Seafile *seafile)
 {
     int i;
@@ -1104,7 +1107,7 @@ seafile_free (Seafile *seafile)
     g_free (seafile);
 }
 
-void
+void // 移除引用
 seafile_unref (Seafile *seafile)
 {
     if (!seafile)
@@ -1114,7 +1117,7 @@ seafile_unref (Seafile *seafile)
         seafile_free (seafile);
 }
 
-static Seafile *
+static Seafile * // 获取seafile对象；版本0
 seafile_from_v0_data (const char *id, const void *data, int len)
 {
     const SeafileOndisk *ondisk = data;
@@ -1160,7 +1163,7 @@ seafile_from_v0_data (const char *id, const void *data, int len)
     return seafile;
 }
 
-static Seafile *
+static Seafile * // 通过json对象获取seafile对象
 seafile_from_json_object (const char *id, json_t *object)
 {
     json_t *block_id_array = NULL;
@@ -1219,7 +1222,7 @@ seafile_from_json_object (const char *id, json_t *object)
     return seafile;
 }
 
-static Seafile *
+static Seafile * // 通过json串获取seafile对象
 seafile_from_json (const char *id, void *data, int len)
 {
     guint8 *decompressed;
@@ -1228,7 +1231,7 @@ seafile_from_json (const char *id, void *data, int len)
     json_error_t error;
     Seafile *seafile;
 
-    if (seaf_decompress (data, len, &decompressed, &outlen) < 0) {
+    if (seaf_decompress (data, len, &decompressed, &outlen) < 0) { // 解压缩
         seaf_warning ("Failed to decompress seafile object %s.\n", id);
         return NULL;
     }
@@ -1249,7 +1252,7 @@ seafile_from_json (const char *id, void *data, int len)
     return seafile;
 }
 
-static Seafile *
+static Seafile * // 字节流转对象
 seafile_from_data (const char *id, void *data, int len, gboolean is_json)
 {
     if (is_json)
@@ -1258,7 +1261,7 @@ seafile_from_data (const char *id, void *data, int len, gboolean is_json)
         return seafile_from_v0_data (id, data, len);
 }
 
-Seafile *
+Seafile * // 获取seafile对象
 seaf_fs_manager_get_seafile (SeafFSManager *mgr,
                              const char *repo_id,
                              int version,
@@ -1303,7 +1306,7 @@ seaf_fs_manager_get_seafile (SeafFSManager *mgr,
     return seafile;
 }
 
-static guint8 *
+static guint8 * // 对象转字节流；版本0
 seafile_to_v0_data (Seafile *file, int *len)
 {
     SeafileOndisk *ondisk;
@@ -1324,7 +1327,7 @@ seafile_to_v0_data (Seafile *file, int *len)
     return (guint8 *)ondisk;
 }
 
-static guint8 *
+static guint8 * // 对象转json字节流
 seafile_to_json (Seafile *file, int *len)
 {
     json_t *object, *block_id_array;
@@ -1354,7 +1357,7 @@ seafile_to_json (Seafile *file, int *len)
     return (guint8 *)data;
 }
 
-static guint8 *
+static guint8 * // 对象转字节流
 seafile_to_data (Seafile *file, int *len)
 {
     if (file->version > 0) {
@@ -1362,11 +1365,11 @@ seafile_to_data (Seafile *file, int *len)
         int orig_len;
         guint8 *compressed;
 
-        data = seafile_to_json (file, &orig_len);
+        data = seafile_to_json (file, &orig_len); // 获取字节流
         if (!data)
             return NULL;
 
-        if (seaf_compress (data, orig_len, &compressed, len) < 0) {
+        if (seaf_compress (data, orig_len, &compressed, len) < 0) { // 压缩
             seaf_warning ("Failed to compress file object %s.\n", file->file_id);
             g_free (data);
             return NULL;
@@ -1377,7 +1380,7 @@ seafile_to_data (Seafile *file, int *len)
         return seafile_to_v0_data (file, len);
 }
 
-int
+int // 保存seafile对象
 seafile_save (SeafFSManager *fs_mgr,
               const char *repo_id,
               int version,
@@ -1402,7 +1405,7 @@ seafile_save (SeafFSManager *fs_mgr,
     return ret;
 }
 
-static void compute_dir_id_v0 (SeafDir *dir, GList *entries)
+static void compute_dir_id_v0 (SeafDir *dir, GList *entries) // 计算目录id；版本0
 {
     SHA_CTX ctx;
     GList *p;
@@ -1417,10 +1420,10 @@ static void compute_dir_id_v0 (SeafDir *dir, GList *entries)
     }
 
     SHA1_Init (&ctx);
-    for (p = entries; p; p = p->next) {
+    for (p = entries; p; p = p->next) { // 通过目录下的目录项，生辰id
         dent = (SeafDirent *)p->data;
-        SHA1_Update (&ctx, dent->id, 40);
-        SHA1_Update (&ctx, dent->name, dent->name_len);
+        SHA1_Update (&ctx, dent->id, 40); // 目录项id
+        SHA1_Update (&ctx, dent->name, dent->name_len); // 目录项名
         /* Convert mode to little endian before compute. */
         if (G_BYTE_ORDER == G_BIG_ENDIAN)
             mode_le = GUINT32_SWAP_LE_BE (dent->mode);
@@ -1433,31 +1436,31 @@ static void compute_dir_id_v0 (SeafDir *dir, GList *entries)
     rawdata_to_hex (sha1, dir->dir_id, 20);
 }
 
-SeafDir *
-seaf_dir_new (const char *id, GList *entries, int version)
+SeafDir * // 创建新的seafdir
+seaf_dir_new (const char *id, GList *entries, int version) // 给定id、目录项、版本
 {
     SeafDir *dir;
 
     dir = g_new0(SeafDir, 1);
 
     dir->version = version;
-    if (id != NULL) {
+    if (id != NULL) { // 指定的id
         memcpy(dir->dir_id, id, 40);
         dir->dir_id[40] = '\0';
-    } else if (version == 0) {
+    } else if (version == 0) { // 生成id
         compute_dir_id_v0 (dir, entries);
     }
     dir->entries = entries;
 
-    if (dir->entries != NULL)
-        dir->ondisk = seaf_dir_to_data (dir, &dir->ondisk_size);
+    if (dir->entries != NULL) // 项目非空
+        dir->ondisk = seaf_dir_to_data (dir, &dir->ondisk_size); // 对象转字节流
     else
-        memcpy (dir->dir_id, EMPTY_SHA1, 40);
+        memcpy (dir->dir_id, EMPTY_SHA1, 40); // 设置id为空
 
     return dir;
 }
 
-void
+void // 释放seafdir
 seaf_dir_free (SeafDir *dir)
 {
     if (dir == NULL)
@@ -1474,7 +1477,7 @@ seaf_dir_free (SeafDir *dir)
     g_free(dir);
 }
 
-SeafDirent *
+SeafDirent * // 创建新的seafdirent
 seaf_dirent_new (int version, const char *sha1, int mode, const char *name,
                  gint64 mtime, const char *modifier, gint64 size)
 {
@@ -1505,7 +1508,7 @@ seaf_dirent_new (int version, const char *sha1, int mode, const char *name,
     return dent;
 }
 
-void 
+void // 释放seafdirent
 seaf_dirent_free (SeafDirent *dent)
 {
     if (!dent)
@@ -1515,7 +1518,7 @@ seaf_dirent_free (SeafDirent *dent)
     g_free (dent);
 }
 
-SeafDirent *
+SeafDirent * // 复制seafdirent
 seaf_dirent_dup (SeafDirent *dent)
 {
     SeafDirent *new_dent;
@@ -1527,7 +1530,7 @@ seaf_dirent_dup (SeafDirent *dent)
     return new_dent;
 }
 
-static SeafDir *
+static SeafDir * // 字节流转seafdir；版本0
 seaf_dir_from_v0_data (const char *dir_id, const uint8_t *data, int len)
 {
     SeafDir *root;
@@ -1555,7 +1558,7 @@ seaf_dir_from_v0_data (const char *dir_id, const uint8_t *data, int len)
     root->dir_id[40] = '\0';
 
     dirent_base_size = 2 * sizeof(guint32) + 40;
-    while (remain > dirent_base_size) {
+    while (remain > dirent_base_size) { // 读seafdirent
         dent = g_new0(SeafDirent, 1);
 
         dent->version = 0;
@@ -1588,7 +1591,7 @@ bad:
     return NULL;
 }
 
-static SeafDirent *
+static SeafDirent * // json对象转seafdirent
 parse_dirent (const char *dir_id, int version, json_t *object)
 {
     guint32 mode;
@@ -1641,7 +1644,7 @@ parse_dirent (const char *dir_id, int version, json_t *object)
     return dirent;
 }
 
-static SeafDir *
+static SeafDir * // json对象转seafdir
 seaf_dir_from_json_object (const char *dir_id, json_t *object)
 {
     json_t *dirent_array = NULL;
@@ -1680,7 +1683,7 @@ seaf_dir_from_json_object (const char *dir_id, json_t *object)
     int i;
     json_t *dirent_obj;
     SeafDirent *dirent;
-    for (i = 0; i < n_dirents; ++i) {
+    for (i = 0; i < n_dirents; ++i) { // 将json对象转seafdirent
         dirent_obj = json_array_get (dirent_array, i);
         dirent = parse_dirent (dir_id, version, dirent_obj);
         if (!dirent) {
@@ -1694,7 +1697,7 @@ seaf_dir_from_json_object (const char *dir_id, json_t *object)
     return dir;
 }
 
-static SeafDir *
+static SeafDir * // json串转seafdir
 seaf_dir_from_json (const char *dir_id, uint8_t *data, int len)
 {
     guint8 *decompressed;
@@ -1703,7 +1706,7 @@ seaf_dir_from_json (const char *dir_id, uint8_t *data, int len)
     json_error_t error;
     SeafDir *dir;
 
-    if (seaf_decompress (data, len, &decompressed, &outlen) < 0) {
+    if (seaf_decompress (data, len, &decompressed, &outlen) < 0) { // 解压
         seaf_warning ("Failed to decompress dir object %s.\n", dir_id);
         return NULL;
     }
@@ -1724,7 +1727,7 @@ seaf_dir_from_json (const char *dir_id, uint8_t *data, int len)
     return dir;
 }
 
-SeafDir *
+SeafDir * // 字节流转seafdir
 seaf_dir_from_data (const char *dir_id, uint8_t *data, int len,
                     gboolean is_json)
 {
@@ -1734,13 +1737,13 @@ seaf_dir_from_data (const char *dir_id, uint8_t *data, int len,
         return seaf_dir_from_v0_data (dir_id, data, len);
 }
 
-inline static int
+inline static int // 获取dirent的字节流大小
 ondisk_dirent_size (SeafDirent *dirent)
 {
     return sizeof(DirentOndisk) + dirent->name_len;
 }
 
-static void *
+static void * // seafdir转字节流；版本0
 seaf_dir_to_v0_data (SeafDir *dir, int *len)
 {
     SeafdirOndisk *ondisk;
@@ -1761,7 +1764,7 @@ seaf_dir_to_v0_data (SeafDir *dir, int *len)
 
     ondisk->type = htonl (SEAF_METADATA_TYPE_DIR);
     p = ondisk->dirents;
-    for (ptr = dirents; ptr; ptr = ptr->next) {
+    for (ptr = dirents; ptr; ptr = ptr->next) { // 遍历seafdirent
         de = ptr->data;
         de_ondisk = (DirentOndisk *) p;
 
@@ -1776,7 +1779,7 @@ seaf_dir_to_v0_data (SeafDir *dir, int *len)
     return (void *)ondisk;
 }
 
-static void
+static void // 将seafdirent对象添加到json对象数组中
 add_to_dirent_array (json_t *array, SeafDirent *dirent)
 {
     json_t *object;
@@ -1794,7 +1797,7 @@ add_to_dirent_array (json_t *array, SeafDirent *dirent)
     json_array_append_new (array, object);
 }
 
-static void *
+static void * // seafdir转json
 seaf_dir_to_json (SeafDir *dir, int *len)
 {
     json_t *object, *dirent_array;
@@ -1825,7 +1828,7 @@ seaf_dir_to_json (SeafDir *dir, int *len)
     return data;
 }
 
-void *
+void * // seafdir转字节流
 seaf_dir_to_data (SeafDir *dir, int *len)
 {
     if (dir->version > 0) {
@@ -1837,7 +1840,7 @@ seaf_dir_to_data (SeafDir *dir, int *len)
         if (!data)
             return NULL;
 
-        if (seaf_compress (data, orig_len, &compressed, len) < 0) {
+        if (seaf_compress (data, orig_len, &compressed, len) < 0) { // 压缩
             seaf_warning ("Failed to compress dir object %s.\n", dir->dir_id);
             g_free (data);
             return NULL;
@@ -1849,7 +1852,7 @@ seaf_dir_to_data (SeafDir *dir, int *len)
         return seaf_dir_to_v0_data (dir, len);
 }
 
-int
+int // 保存seafdir对象
 seaf_dir_save (SeafFSManager *fs_mgr,
                const char *repo_id,
                int version,
@@ -1871,11 +1874,11 @@ seaf_dir_save (SeafFSManager *fs_mgr,
     return ret;
 }
 
-SeafDir *
-seaf_fs_manager_get_seafdir (SeafFSManager *mgr,
-                             const char *repo_id,
-                             int version,
-                             const char *dir_id)
+SeafDir * // 获取seadir对象
+seaf_fs_manager_get_seafdir(SeafFSManager *mgr,
+                            const char *repo_id,
+                            int version,
+                            const char *dir_id)
 {
     void *data;
     int len;
@@ -1883,7 +1886,7 @@ seaf_fs_manager_get_seafdir (SeafFSManager *mgr,
 
     /* TODO: add hash cache */
 
-    if (memcmp (dir_id, EMPTY_SHA1, 40) == 0) {
+    if (memcmp (dir_id, EMPTY_SHA1, 40) == 0) { // 特判空目录
         dir = g_new0 (SeafDir, 1);
         dir->version = version;
         memset (dir->dir_id, '0', 40);
@@ -1891,18 +1894,18 @@ seaf_fs_manager_get_seafdir (SeafFSManager *mgr,
     }
 
     if (seaf_obj_store_read_obj (mgr->obj_store, repo_id, version,
-                                 dir_id, &data, &len) < 0) {
+                                 dir_id, &data, &len) < 0) { // 字节流
         seaf_warning ("[fs mgr] Failed to read dir %s.\n", dir_id);
         return NULL;
     }
 
-    dir = seaf_dir_from_data (dir_id, data, len, (version > 0));
+    dir = seaf_dir_from_data (dir_id, data, len, (version > 0)); // 字节流转对象
     g_free (data);
 
     return dir;
 }
 
-static gint
+static gint // seafdirent比较函数
 compare_dirents (gconstpointer a, gconstpointer b)
 {
     const SeafDirent *denta = a, *dentb = b;
@@ -1910,7 +1913,7 @@ compare_dirents (gconstpointer a, gconstpointer b)
     return strcmp (dentb->name, denta->name);
 }
 
-static gboolean
+static gboolean // 判断dirent列表是否已排序
 is_dirents_sorted (GList *dirents)
 {
     GList *ptr;
@@ -1933,7 +1936,7 @@ is_dirents_sorted (GList *dirents)
     return ret;
 }
 
-SeafDir *
+SeafDir * // 获取seafdir，同时排序seafdirent
 seaf_fs_manager_get_seafdir_sorted (SeafFSManager *mgr,
                                     const char *repo_id,
                                     int version,
@@ -1948,13 +1951,13 @@ seaf_fs_manager_get_seafdir_sorted (SeafFSManager *mgr,
     if (version > 0)
         return dir;
 
-    if (!is_dirents_sorted (dir->entries))
+    if (!is_dirents_sorted (dir->entries)) // 排序
         dir->entries = g_list_sort (dir->entries, compare_dirents);
 
     return dir;
 }
 
-SeafDir *
+SeafDir * // 根据相对路径获取seafdir，并排序seafdirent
 seaf_fs_manager_get_seafdir_sorted_by_path (SeafFSManager *mgr,
                                             const char *repo_id,
                                             int version,
@@ -1972,13 +1975,13 @@ seaf_fs_manager_get_seafdir_sorted_by_path (SeafFSManager *mgr,
     if (version > 0)
         return dir;
 
-    if (!is_dirents_sorted (dir->entries))
+    if (!is_dirents_sorted (dir->entries)) // 排序
         dir->entries = g_list_sort (dir->entries, compare_dirents);
 
     return dir;
 }
 
-static int
+static int // 获取类型；版本0
 parse_metadata_type_v0 (const uint8_t *data, int len)
 {
     const uint8_t *ptr = data;
@@ -1989,7 +1992,7 @@ parse_metadata_type_v0 (const uint8_t *data, int len)
     return (int)(get32bit(&ptr));
 }
 
-static int
+static int // 从json获取类型
 parse_metadata_type_json (const char *obj_id, uint8_t *data, int len)
 {
     guint8 *decompressed;
@@ -2019,7 +2022,7 @@ parse_metadata_type_json (const char *obj_id, uint8_t *data, int len)
     return type;
 }
 
-int
+int // seaf对象获取类型
 seaf_metadata_type_from_data (const char *obj_id,
                               uint8_t *data, int len, gboolean is_json)
 {
@@ -2029,7 +2032,7 @@ seaf_metadata_type_from_data (const char *obj_id,
         return parse_metadata_type_v0 (data, len);
 }
 
-SeafFSObject *
+SeafFSObject * // 获取文件系统对象；版本0
 fs_object_from_v0_data (const char *obj_id, const uint8_t *data, int len)
 {
     int type = parse_metadata_type_v0 (data, len);
@@ -2044,7 +2047,7 @@ fs_object_from_v0_data (const char *obj_id, const uint8_t *data, int len)
     }
 }
 
-SeafFSObject *
+SeafFSObject * // json转文件系统对象
 fs_object_from_json (const char *obj_id, uint8_t *data, int len)
 {
     guint8 *decompressed;
@@ -2086,7 +2089,7 @@ fs_object_from_json (const char *obj_id, uint8_t *data, int len)
     return fs_obj;
 }
 
-SeafFSObject *
+SeafFSObject * // 获取文件系统对象
 seaf_fs_object_from_data (const char *obj_id,
                           uint8_t *data, int len,
                           gboolean is_json)
@@ -2097,7 +2100,7 @@ seaf_fs_object_from_data (const char *obj_id,
         return fs_object_from_v0_data (obj_id, data, len);
 }
 
-void
+void // 释放文件系统对象
 seaf_fs_object_free (SeafFSObject *obj)
 {
     if (!obj)
@@ -2109,7 +2112,7 @@ seaf_fs_object_free (SeafFSObject *obj)
         seaf_dir_free ((SeafDir *)obj);
 }
 
-BlockList *
+BlockList * // 新建块表
 block_list_new ()
 {
     BlockList *bl = g_new0 (BlockList, 1);
@@ -2120,7 +2123,7 @@ block_list_new ()
     return bl;
 }
 
-void
+void // 释放块表
 block_list_free (BlockList *bl)
 {
     if (bl->block_hash)
@@ -2129,7 +2132,7 @@ block_list_free (BlockList *bl)
     g_free (bl);
 }
 
-void
+void // 块表插入块
 block_list_insert (BlockList *bl, const char *block_id)
 {
     if (g_hash_table_lookup (bl->block_hash, block_id))
@@ -2141,7 +2144,7 @@ block_list_insert (BlockList *bl, const char *block_id)
     ++bl->n_blocks;
 }
 
-BlockList *
+BlockList * // 块表差集
 block_list_difference (BlockList *bl1, BlockList *bl2)
 {
     BlockList *bl;
@@ -2151,9 +2154,9 @@ block_list_difference (BlockList *bl1, BlockList *bl2)
 
     bl = block_list_new ();
 
-    for (i = 0; i < bl1->block_ids->len; ++i) {
-        block_id = g_ptr_array_index (bl1->block_ids, i);
-        if (g_hash_table_lookup (bl2->block_hash, block_id) == NULL) {
+    for (i = 0; i < bl1->block_ids->len; ++i) { // 遍历表一
+        block_id = g_ptr_array_index (bl1->block_ids, i); // 向新表插入
+        if (g_hash_table_lookup (bl2->block_hash, block_id) == NULL) { // 在表二找到，就从新表删去
             key = g_strdup(block_id);
             g_hash_table_replace (bl->block_hash, key, key);
             g_ptr_array_add (bl->block_ids, g_strdup(block_id));
@@ -2164,14 +2167,14 @@ block_list_difference (BlockList *bl1, BlockList *bl2)
     return bl;
 }
 
-static int
+static int // 对文件执行遍历回调函数
 traverse_file (SeafFSManager *mgr,
                const char *repo_id,
                int version,
-               const char *id,
-               TraverseFSTreeCallback callback,
-               void *user_data,
-               gboolean skip_errors)
+               const char *id, // seafile的id
+               TraverseFSTreeCallback callback, // 回调函数
+               void *user_data, // 回调函数用户参数
+               gboolean skip_errors) // 跳过异常
 {
     gboolean stop = FALSE;
 
@@ -2179,17 +2182,17 @@ traverse_file (SeafFSManager *mgr,
         return 0;
 
     if (!callback (mgr, repo_id, version, id, SEAF_METADATA_TYPE_FILE, user_data, &stop) &&
-        !skip_errors)
+        !skip_errors) // 转发回调函数
         return -1;
 
     return 0;
 }
 
-static int
+static int // 递归遍历目录下的所有目录和文件
 traverse_dir (SeafFSManager *mgr,
               const char *repo_id,
               int version,
-              const char *id,
+              const char *id, // seafdir的id
               TraverseFSTreeCallback callback,
               void *user_data,
               gboolean skip_errors)
@@ -2207,27 +2210,27 @@ traverse_dir (SeafFSManager *mgr,
     if (stop)
         return 0;
 
-    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, id);
+    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, id); // 获取seafdir
     if (!dir) {
         seaf_warning ("[fs-mgr]get seafdir %s failed\n", id);
         if (skip_errors)
             return 0;
         return -1;
     }
-    for (p = dir->entries; p; p = p->next) {
+    for (p = dir->entries; p; p = p->next) { // 遍历dirent
         seaf_dent = (SeafDirent *)p->data;
 
-        if (S_ISREG(seaf_dent->mode)) {
+        if (S_ISREG(seaf_dent->mode)) { // 是常规文件
             if (traverse_file (mgr, repo_id, version, seaf_dent->id,
-                               callback, user_data, skip_errors) < 0) {
+                               callback, user_data, skip_errors) < 0) { // 对文件执行遍历回调函数
                 if (!skip_errors) {
                     seaf_dir_free (dir);
                     return -1;
                 }
             }
-        } else if (S_ISDIR(seaf_dent->mode)) {
+        } else if (S_ISDIR(seaf_dent->mode)) { // 是目录
             if (traverse_dir (mgr, repo_id, version, seaf_dent->id,
-                              callback, user_data, skip_errors) < 0) {
+                              callback, user_data, skip_errors) < 0) { // 递归
                 if (!skip_errors) {
                     seaf_dir_free (dir);
                     return -1;
@@ -2240,11 +2243,11 @@ traverse_dir (SeafFSManager *mgr,
     return 0;
 }
 
-int
+int // 遍历文件树
 seaf_fs_manager_traverse_tree (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
-                               const char *root_id,
+                               const char *root_id, // seafdir的id
                                TraverseFSTreeCallback callback,
                                void *user_data,
                                gboolean skip_errors)
@@ -2255,7 +2258,7 @@ seaf_fs_manager_traverse_tree (SeafFSManager *mgr,
     return traverse_dir (mgr, repo_id, version, root_id, callback, user_data, skip_errors);
 }
 
-static int
+static int // 递归遍历，根据路径
 traverse_dir_path (SeafFSManager *mgr,
                    const char *repo_id,
                    int version,
@@ -2277,17 +2280,17 @@ traverse_dir_path (SeafFSManager *mgr,
     if (stop)
         return 0;
 
-    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, dent->id);
+    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, dent->id); // 获取seafdir
     if (!dir) {
         seaf_warning ("get seafdir %s:%s failed\n", repo_id, dent->id);
         return -1;
     }
 
-    for (p = dir->entries; p; p = p->next) {
+    for (p = dir->entries; p; p = p->next) { // 遍历dirent
         seaf_dent = (SeafDirent *)p->data;
-        sub_path = g_strconcat (dir_path, "/", seaf_dent->name, NULL);
+        sub_path = g_strconcat (dir_path, "/", seaf_dent->name, NULL); // 获取下级目录/文件名
 
-        if (S_ISREG(seaf_dent->mode)) {
+        if (S_ISREG(seaf_dent->mode)) { // 常规文件，回调
             if (!callback (mgr, sub_path, seaf_dent, user_data, &stop)) {
                 g_free (sub_path);
                 ret = -1;
@@ -2295,7 +2298,7 @@ traverse_dir_path (SeafFSManager *mgr,
             }
         } else if (S_ISDIR(seaf_dent->mode)) {
             if (traverse_dir_path (mgr, repo_id, version, sub_path, seaf_dent,
-                                   callback, user_data) < 0) {
+                                   callback, user_data) < 0) { // 目录，递归
                 g_free (sub_path);
                 ret = -1;
                 break;
@@ -2308,12 +2311,12 @@ traverse_dir_path (SeafFSManager *mgr,
     return ret;
 }
 
-int
+int // 遍历文件树，根据相对路径
 seaf_fs_manager_traverse_path (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
-                               const char *root_id,
-                               const char *dir_path,
+                               const char *root_id, // seafdir的id
+                               const char *dir_path, // 相对路径
                                TraverseFSPathCallback callback,
                                void *user_data)
 {
@@ -2321,20 +2324,20 @@ seaf_fs_manager_traverse_path (SeafFSManager *mgr,
     int ret = 0;
 
     dent = seaf_fs_manager_get_dirent_by_path (mgr, repo_id, version,
-                                               root_id, dir_path, NULL);
+                                               root_id, dir_path, NULL); // 获取相对路径下的seafdir
     if (!dent) {
         seaf_warning ("Failed to get dirent for %.8s:%s.\n", repo_id, dir_path);
         return -1;
     }
 
     ret = traverse_dir_path (mgr, repo_id, version, dir_path, dent,
-                             callback, user_data);
+                             callback, user_data); // 递归遍历，根据路径
 
     seaf_dirent_free (dent);
     return ret;
 }
 
-static gboolean
+static gboolean // 填充块表
 fill_blocklist (SeafFSManager *mgr,
                 const char *repo_id, int version,
                 const char *obj_id, int type,
@@ -2344,15 +2347,15 @@ fill_blocklist (SeafFSManager *mgr,
     Seafile *seafile;
     int i;
 
-    if (type == SEAF_METADATA_TYPE_FILE) {
-        seafile = seaf_fs_manager_get_seafile (mgr, repo_id, version, obj_id);
+    if (type == SEAF_METADATA_TYPE_FILE) { // 要求是seafile
+        seafile = seaf_fs_manager_get_seafile (mgr, repo_id, version, obj_id); // 获取seafile
         if (!seafile) {
             seaf_warning ("[fs mgr] Failed to find file %s.\n", obj_id);
             return FALSE;
         }
 
-        for (i = 0; i < seafile->n_blocks; ++i)
-            block_list_insert (bl, seafile->blk_sha1s[i]);
+        for (i = 0; i < seafile->n_blocks; ++i) // 遍历块索引
+            block_list_insert (bl, seafile->blk_sha1s[i]); // 加入块表 
 
         seafile_unref (seafile);
     }
@@ -2360,7 +2363,7 @@ fill_blocklist (SeafFSManager *mgr,
     return TRUE;
 }
 
-int
+int // 记录seafdir下的所有块
 seaf_fs_manager_populate_blocklist (SeafFSManager *mgr,
                                     const char *repo_id,
                                     int version,
@@ -2368,33 +2371,33 @@ seaf_fs_manager_populate_blocklist (SeafFSManager *mgr,
                                     BlockList *bl)
 {
     return seaf_fs_manager_traverse_tree (mgr, repo_id, version, root_id,
-                                          fill_blocklist,
-                                          bl, FALSE);
+                                          fill_blocklist, // 填充块表
+                                          bl, FALSE); // 遍历文件树
 }
 
-gboolean
+gboolean // 判断对象是否存在
 seaf_fs_manager_object_exists (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
                                const char *id)
 {
     /* Empty file and dir always exists. */
-    if (memcmp (id, EMPTY_SHA1, 40) == 0)
+    if (memcmp (id, EMPTY_SHA1, 40) == 0) // 空文件
         return TRUE;
 
-    return seaf_obj_store_obj_exists (mgr->obj_store, repo_id, version, id);
+    return seaf_obj_store_obj_exists (mgr->obj_store, repo_id, version, id); // 转发
 }
 
-void
+void // 删除对象
 seaf_fs_manager_delete_object (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
                                const char *id)
 {
-    seaf_obj_store_delete_obj (mgr->obj_store, repo_id, version, id);
+    seaf_obj_store_delete_obj (mgr->obj_store, repo_id, version, id); // 转发
 }
 
-gint64
+gint64 // 获取文件大小
 seaf_fs_manager_get_file_size (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
@@ -2403,7 +2406,7 @@ seaf_fs_manager_get_file_size (SeafFSManager *mgr,
     Seafile *file;
     gint64 file_size;
 
-    file = seaf_fs_manager_get_seafile (seaf->fs_mgr, repo_id, version, file_id);
+    file = seaf_fs_manager_get_seafile (seaf->fs_mgr, repo_id, version, file_id); // 获取seafile
     if (!file) {
         seaf_warning ("Couldn't get file %s:%s\n", repo_id, file_id);
         return -1;
@@ -2412,10 +2415,10 @@ seaf_fs_manager_get_file_size (SeafFSManager *mgr,
     file_size = file->file_size;
 
     seafile_unref (file);
-    return file_size;
+    return file_size; // 返回seafile中记录的文件大小
 }
 
-static gint64
+static gint64 // 获取目录大小
 get_dir_size (SeafFSManager *mgr, const char *repo_id, int version, const char *id)
 {
     SeafDir *dir;
@@ -2424,14 +2427,14 @@ get_dir_size (SeafFSManager *mgr, const char *repo_id, int version, const char *
     gint64 result;
     GList *p;
 
-    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, id);
+    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, id); // 获取seafdir
     if (!dir)
         return -1;
 
     for (p = dir->entries; p; p = p->next) {
         seaf_dent = (SeafDirent *)p->data;
 
-        if (S_ISREG(seaf_dent->mode)) {
+        if (S_ISREG(seaf_dent->mode)) { // 常规文件，则计算文件大小
             if (dir->version > 0)
                 result = seaf_dent->size;
             else {
@@ -2445,7 +2448,7 @@ get_dir_size (SeafFSManager *mgr, const char *repo_id, int version, const char *
                 }
             }
             size += result;
-        } else if (S_ISDIR(seaf_dent->mode)) {
+        } else if (S_ISDIR(seaf_dent->mode)) { // 否则递归
             result = get_dir_size (mgr, repo_id, version, seaf_dent->id);
             if (result < 0) {
                 seaf_dir_free (dir);
@@ -2459,7 +2462,7 @@ get_dir_size (SeafFSManager *mgr, const char *repo_id, int version, const char *
     return size;
 }
 
-gint64
+gint64 // 获取文件系统大小
 seaf_fs_manager_get_fs_size (SeafFSManager *mgr,
                              const char *repo_id,
                              int version,
@@ -2467,10 +2470,10 @@ seaf_fs_manager_get_fs_size (SeafFSManager *mgr,
 {
      if (strcmp (root_id, EMPTY_SHA1) == 0)
         return 0;
-     return get_dir_size (mgr, repo_id, version, root_id);
+     return get_dir_size (mgr, repo_id, version, root_id); // 就是获取目录大小
 }
 
-static int
+static int // 统计文件数目
 count_dir_files (SeafFSManager *mgr, const char *repo_id, int version, const char *id)
 {
     SeafDir *dir;
@@ -2479,16 +2482,16 @@ count_dir_files (SeafFSManager *mgr, const char *repo_id, int version, const cha
     int result;
     GList *p;
 
-    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, id);
+    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, id); // 获取seafdir
     if (!dir)
         return -1;
 
-    for (p = dir->entries; p; p = p->next) {
+    for (p = dir->entries; p; p = p->next) { // 遍历seafdirent
         seaf_dent = (SeafDirent *)p->data;
 
-        if (S_ISREG(seaf_dent->mode)) {
+        if (S_ISREG(seaf_dent->mode)) { // 文件，加一
             count ++;
-        } else if (S_ISDIR(seaf_dent->mode)) {
+        } else if (S_ISDIR(seaf_dent->mode)) { // 否则递归
             result = count_dir_files (mgr, repo_id, version, seaf_dent->id);
             if (result < 0) {
                 seaf_dir_free (dir);
@@ -2502,7 +2505,7 @@ count_dir_files (SeafFSManager *mgr, const char *repo_id, int version, const cha
     return count;
 }
 
-static int
+static int // 记录目录数、文件数
 get_file_count_info (SeafFSManager *mgr,
                      const char *repo_id,
                      int version,
@@ -2538,7 +2541,7 @@ get_file_count_info (SeafFSManager *mgr,
     return ret;
 }
 
-int
+int // 记录文件系统的文件
 seaf_fs_manager_count_fs_files (SeafFSManager *mgr,
                                 const char *repo_id,
                                 int version,
@@ -2546,10 +2549,10 @@ seaf_fs_manager_count_fs_files (SeafFSManager *mgr,
 {
      if (strcmp (root_id, EMPTY_SHA1) == 0)
         return 0;
-     return count_dir_files (mgr, repo_id, version, root_id);
+     return count_dir_files (mgr, repo_id, version, root_id); // 就是获取目录中的文件数
 }
 
-SeafDir *
+SeafDir * // 根据相对路径获取seafdir
 seaf_fs_manager_get_seafdir_by_path (SeafFSManager *mgr,
                                      const char *repo_id,
                                      int version,
@@ -2563,7 +2566,7 @@ seaf_fs_manager_get_seafdir_by_path (SeafFSManager *mgr,
     char *name, *saveptr;
     char *tmp_path = g_strdup(path);
 
-    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, dir_id);
+    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, dir_id); // 获取根
     if (!dir) {
         g_set_error (error, SEAFILE_DOMAIN, SEAF_ERR_DIR_MISSING, "directory is missing");
         g_free (tmp_path);
@@ -2571,9 +2574,9 @@ seaf_fs_manager_get_seafdir_by_path (SeafFSManager *mgr,
     }
 
     name = strtok_r (tmp_path, "/", &saveptr);
-    while (name != NULL) {
+    while (name != NULL) { // 遍历子目录
         GList *l;
-        for (l = dir->entries; l != NULL; l = l->next) {
+        for (l = dir->entries; l != NULL; l = l->next) { // 在seafdirent中寻找同名
             dent = l->data;
 
             if (strcmp(dent->name, name) == 0 && S_ISDIR(dent->mode)) {
@@ -2582,7 +2585,7 @@ seaf_fs_manager_get_seafdir_by_path (SeafFSManager *mgr,
             }
         }
 
-        if (!l) {
+        if (!l) { // 出错
             g_set_error (error, SEAFILE_DOMAIN, SEAF_ERR_PATH_NO_EXIST,
                          "Path does not exists %s", path);
             seaf_dir_free (dir);
@@ -2591,23 +2594,23 @@ seaf_fs_manager_get_seafdir_by_path (SeafFSManager *mgr,
         }
 
         SeafDir *prev = dir;
-        dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, dir_id);
+        dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, dir_id); // 获取下一级seafdir
         seaf_dir_free (prev);
 
-        if (!dir) {
+        if (!dir) { // 出错
             g_set_error (error, SEAFILE_DOMAIN, SEAF_ERR_DIR_MISSING,
                          "directory is missing");
             break;
         }
 
-        name = strtok_r (NULL, "/", &saveptr);
+        name = strtok_r (NULL, "/", &saveptr); // 下一级目录名
     }
 
     g_free (tmp_path);
     return dir;
 }
 
-char *
+char * // 相对路径获取对象id
 seaf_fs_manager_path_to_obj_id (SeafFSManager *mgr,
                                 const char *repo_id,
                                 int version,
@@ -2624,10 +2627,10 @@ seaf_fs_manager_path_to_obj_id (SeafFSManager *mgr,
     GList *p;
     char *obj_id = NULL;
 
-    while (off >= 0 && copy[off] == '/')
+    while (off >= 0 && copy[off] == '/') // 找到最后一个'/'，因此copy[0:off]代表一个目录
         copy[off--] = 0;
 
-    if (strlen(copy) == 0) {
+    if (strlen(copy) == 0) { // 就是该目录
         /* the path is root "/" */
         if (mode) {
             *mode = S_IFDIR;
@@ -2637,7 +2640,7 @@ seaf_fs_manager_path_to_obj_id (SeafFSManager *mgr,
     }
 
     slash = strrchr (copy, '/');
-    if (!slash) {
+    if (!slash) { // 对象在该目录下
         base_dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, root_id);
         if (!base_dir) {
             seaf_warning ("Failed to find root dir %s.\n", root_id);
@@ -2645,7 +2648,7 @@ seaf_fs_manager_path_to_obj_id (SeafFSManager *mgr,
             goto out;
         }
         name = copy;
-    } else {
+    } else { // 对象在相对路径下
         *slash = 0;
         name = slash + 1;
         GError *tmp_error = NULL;
@@ -2654,7 +2657,7 @@ seaf_fs_manager_path_to_obj_id (SeafFSManager *mgr,
                                                         version,
                                                         root_id,
                                                         copy,
-                                                        &tmp_error);
+                                                        &tmp_error); // 获取相对路径所在目录
         if (tmp_error &&
             !g_error_matches(tmp_error,
                              SEAFILE_DOMAIN,
@@ -2671,14 +2674,14 @@ seaf_fs_manager_path_to_obj_id (SeafFSManager *mgr,
         }
     }
 
-    for (p = base_dir->entries; p != NULL; p = p->next) {
+    for (p = base_dir->entries; p != NULL; p = p->next) { // 找到同名dirent
         dent = p->data;
 
         if (!is_object_id_valid (dent->id))
             continue;
 
         if (strcmp (dent->name, name) == 0) {
-            obj_id = g_strdup (dent->id);
+            obj_id = g_strdup (dent->id); // 目标id
             if (mode) {
                 *mode = dent->mode;
             }
@@ -2693,7 +2696,7 @@ out:
     return obj_id;
 }
 
-char *
+char * // 根据相对路径获取seafile
 seaf_fs_manager_get_seafile_id_by_path (SeafFSManager *mgr,
                                         const char *repo_id,
                                         int version,
@@ -2718,7 +2721,7 @@ seaf_fs_manager_get_seafile_id_by_path (SeafFSManager *mgr,
     return file_id;
 }
 
-char *
+char * // 根据相对路径获取seafile的id
 seaf_fs_manager_get_seafdir_id_by_path (SeafFSManager *mgr,
                                         const char *repo_id,
                                         int version,
@@ -2743,7 +2746,7 @@ seaf_fs_manager_get_seafdir_id_by_path (SeafFSManager *mgr,
     return dir_id;
 }
 
-SeafDirent *
+SeafDirent * // 根据路径获取seafdirent
 seaf_fs_manager_get_dirent_by_path (SeafFSManager *mgr,
                                     const char *repo_id,
                                     int version,
@@ -2774,7 +2777,7 @@ seaf_fs_manager_get_dirent_by_path (SeafFSManager *mgr,
     }
 
     GList *p;
-    for (p = dir->entries; p; p = p->next) {
+    for (p = dir->entries; p; p = p->next) { // 遍历dirent，找到同名项
         SeafDirent *d = p->data;
         if (strcmp (d->name, file_name) == 0) {
             dent = seaf_dirent_dup(d);
@@ -2791,9 +2794,9 @@ out:
     return dent;
 }
 
-static gboolean
+static gboolean // 验证seafdir；版本0
 verify_seafdir_v0 (const char *dir_id, const uint8_t *data, int len,
-                   gboolean verify_id)
+                   gboolean verify_id) // 是否验证SHA1
 {
     guint32 meta_type;
     guint32 mode;
@@ -2826,7 +2829,7 @@ verify_seafdir_v0 (const char *dir_id, const uint8_t *data, int len,
         SHA1_Init (&ctx);
 
     dirent_base_size = 2 * sizeof(guint32) + 40;
-    while (remain > dirent_base_size) {
+    while (remain > dirent_base_size) { // 验证seafdirent
         mode = get32bit (&ptr);
         memcpy (id, ptr, 40);
         id[40] = '\0';
@@ -2866,7 +2869,7 @@ verify_seafdir_v0 (const char *dir_id, const uint8_t *data, int len,
         return FALSE;
 }
 
-static gboolean
+static gboolean // 验证json形式的seafile对象字节流
 verify_fs_object_json (const char *obj_id, uint8_t *data, int len)
 {
     guint8 *decompressed;
@@ -2874,19 +2877,19 @@ verify_fs_object_json (const char *obj_id, uint8_t *data, int len)
     unsigned char sha1[20];
     char hex[41];
 
-    if (seaf_decompress (data, len, &decompressed, &outlen) < 0) {
+    if (seaf_decompress (data, len, &decompressed, &outlen) < 0) { // 解压
         seaf_warning ("Failed to decompress fs object %s.\n", obj_id);
         return FALSE;
     }
 
-    calculate_sha1 (sha1, (const char *)decompressed, outlen);
+    calculate_sha1 (sha1, (const char *)decompressed, outlen); // 计算SHA1
     rawdata_to_hex (sha1, hex, 20);
 
     g_free (decompressed);
-    return (strcmp(hex, obj_id) == 0);
+    return (strcmp(hex, obj_id) == 0); // 验证id
 }
 
-static gboolean
+static gboolean // 给定id和字节流，验证seafdir
 verify_seafdir (const char *dir_id, uint8_t *data, int len,
                 gboolean verify_id, gboolean is_json)
 {
@@ -2896,7 +2899,7 @@ verify_seafdir (const char *dir_id, uint8_t *data, int len,
         return verify_seafdir_v0 (dir_id, data, len, verify_id);
 }
                                         
-gboolean
+gboolean // 验证seafdir
 seaf_fs_manager_verify_seafdir (SeafFSManager *mgr,
                                 const char *repo_id,
                                 int version,
@@ -2924,7 +2927,7 @@ seaf_fs_manager_verify_seafdir (SeafFSManager *mgr,
     return ret;
 }
 
-static gboolean
+static gboolean // 验证seafile；版本0
 verify_seafile_v0 (const char *id, const void *data, int len, gboolean verify_id)
 {
     const SeafileOndisk *ondisk = data;
@@ -2963,7 +2966,7 @@ verify_seafile_v0 (const char *id, const void *data, int len, gboolean verify_id
         return FALSE;
 }
 
-static gboolean
+static gboolean // 根据id和字节流验证seafile
 verify_seafile (const char *id, void *data, int len,
                 gboolean verify_id, gboolean is_json)
 {
@@ -2973,7 +2976,7 @@ verify_seafile (const char *id, void *data, int len,
         return verify_seafile_v0 (id, data, len, verify_id);
 }
 
-gboolean
+gboolean // 验证seafile
 seaf_fs_manager_verify_seafile (SeafFSManager *mgr,
                                 const char *repo_id,
                                 int version,
@@ -3001,7 +3004,7 @@ seaf_fs_manager_verify_seafile (SeafFSManager *mgr,
     return ret;
 }
 
-static gboolean
+static gboolean // 验证seafile对象；版本0
 verify_fs_object_v0 (const char *obj_id,
                      uint8_t *data,
                      int len,
@@ -3025,7 +3028,7 @@ verify_fs_object_v0 (const char *obj_id,
     return ret;
 }
 
-gboolean
+gboolean // 验证seafile对象（是验证seafdir、seafile的泛化）
 seaf_fs_manager_verify_object (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
@@ -3057,7 +3060,7 @@ seaf_fs_manager_verify_object (SeafFSManager *mgr,
     return ret;
 }
 
-int
+int // 获取seafdir版本（版本0返回0，其他版本返回头文件定义版本）
 dir_version_from_repo_version (int repo_version)
 {
     if (repo_version == 0)
@@ -3066,7 +3069,7 @@ dir_version_from_repo_version (int repo_version)
         return CURRENT_DIR_OBJ_VERSION;
 }
 
-int
+int // 获取seafile版本
 seafile_version_from_repo_version (int repo_version)
 {
     if (repo_version == 0)
@@ -3075,14 +3078,14 @@ seafile_version_from_repo_version (int repo_version)
         return CURRENT_SEAFILE_OBJ_VERSION;
 }
 
-int
+int // 移除存储
 seaf_fs_manager_remove_store (SeafFSManager *mgr,
                               const char *store_id)
 {
     return seaf_obj_store_remove_store (mgr->obj_store, store_id);
 }
 
-GObject *
+GObject * // 根据相对路径，获取文件数量
 seaf_fs_manager_get_file_count_info_by_path (SeafFSManager *mgr,
                                              const char *repo_id,
                                              int version,
@@ -3098,7 +3101,7 @@ seaf_fs_manager_get_file_count_info_by_path (SeafFSManager *mgr,
                                                      repo_id,
                                                      version,
                                                      root_id,
-                                                     path, NULL);
+                                                     path, NULL); // 根据相对路径获取seafdir
     if (!dir_id) {
         seaf_warning ("Path %s doesn't exist or is not a dir in repo %.10s.\n",
                       path, repo_id);
@@ -3106,7 +3109,7 @@ seaf_fs_manager_get_file_count_info_by_path (SeafFSManager *mgr,
         goto out;
     }
     if (get_file_count_info (mgr, repo_id, version,
-                             dir_id, &dir_count, &file_count, &size) < 0) {
+                             dir_id, &dir_count, &file_count, &size) < 0) { // 统计seafdir下文件数目
         seaf_warning ("Failed to get count info from path %s in repo %.10s.\n",
                       path, repo_id);
         goto out;
@@ -3121,7 +3124,7 @@ out:
     return (GObject *)info;
 }
 
-static int
+static int // 递归查找文件
 search_files_recursive (SeafFSManager *mgr,
                         const char *repo_id,
                         const char *path,
@@ -3136,7 +3139,7 @@ search_files_recursive (SeafFSManager *mgr,
     int ret = 0;
     char *full_path = NULL;
 
-    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, id);
+    dir = seaf_fs_manager_get_seafdir (mgr, repo_id, version, id); // 获取seafdir
     if (!dir) {
         seaf_warning ("[fs-mgr]get seafdir %s failed\n", id);
         return -1;
@@ -3146,18 +3149,18 @@ search_files_recursive (SeafFSManager *mgr,
         seaf_dent = (SeafDirent *)p->data;
         full_path = g_strconcat (path, "/", seaf_dent->name, NULL);
 
-        if (seaf_dent->name && strcasestr (seaf_dent->name, str) != NULL) {
+        if (seaf_dent->name && strcasestr (seaf_dent->name, str) != NULL) { // 不区分大小写，从文件名查找str
             SearchResult *sr = g_new0(SearchResult, 1);
-            sr->path = g_strdup (full_path);
-            sr->size = seaf_dent->size;
-            sr->mtime = seaf_dent->mtime;
-            *file_list = g_list_prepend (*file_list, sr);
+            sr->path = g_strdup (full_path); // 记录文件路径（相对于根目录）
+            sr->size = seaf_dent->size; // 记录文件大小
+            sr->mtime = seaf_dent->mtime; // 记录文件最后修改时间
+            *file_list = g_list_prepend (*file_list, sr); // 将查询结果添加到表中
             if (S_ISDIR(seaf_dent->mode)) {
                 sr->is_dir = TRUE;
             }
         }
 
-        if (S_ISDIR(seaf_dent->mode)) {
+        if (S_ISDIR(seaf_dent->mode)) { // 递归查找
             if (search_files_recursive (mgr, repo_id, full_path,
                                         seaf_dent->id, str,
                                         version, file_list) < 0) {
@@ -3174,7 +3177,7 @@ search_files_recursive (SeafFSManager *mgr,
     return ret;
 }
 
-GList *
+GList * // 搜索文件，返回结果列表
 seaf_fs_manager_search_files (SeafFSManager *mgr,
                               const char *repo_id,
                               const char *str)
@@ -3182,19 +3185,19 @@ seaf_fs_manager_search_files (SeafFSManager *mgr,
     GList *file_list = NULL;
     SeafCommit *head = NULL;
 
-    SeafRepo *repo = seaf_repo_manager_get_repo (seaf->repo_mgr, repo_id);
+    SeafRepo *repo = seaf_repo_manager_get_repo (seaf->repo_mgr, repo_id); // 获取仓库
     if (!repo) {
         seaf_warning ("Failed to find repo %s\n", repo_id);
         goto out;
     }
 
-    head = seaf_commit_manager_get_commit (seaf->commit_mgr,repo->id, repo->version, repo->head->commit_id);
+    head = seaf_commit_manager_get_commit (seaf->commit_mgr,repo->id, repo->version, repo->head->commit_id); // 获取首次提交
     if (!head) {
         seaf_warning ("Failed to find commit %s\n", repo->head->commit_id);
         goto out;
     }
 
-    search_files_recursive (mgr, repo_id, "", head->root_id,
+    search_files_recursive (mgr, repo_id, "", head->root_id, // 首次提交的seafdir
                             str, repo->version, &file_list);
 
 out:

@@ -463,7 +463,7 @@ seaf_stat_from_find_data (WIN32_FIND_DATAW *fdata, SeafStat *st)
 #endif
 
 int
-seaf_set_file_time (const char *path, guint64 mtime) // 设置seafile的文件时间
+seaf_set_file_time (const char *path, guint64 mtime) // 设置文件修改时间
 {
 #ifndef WIN32
     struct stat st; // 文件统计信息

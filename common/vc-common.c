@@ -628,6 +628,9 @@ gen_conflict_path_wrapper (const char *repo_id, int version,
     /* XXX: this function is only used in client, so store_id is always
      * the same as repo_id. This can be changed if it's also called in
      * server.
+     * 
+     * 仅客户端使用，因此store_id总是等于repo_id
+     * 如果它也在服务器中调用，则可以更改
      */
     if (get_file_modifier_mtime (repo_id, repo_id, version, head, in_repo_path,
                                  &modifier, &mtime) < 0)

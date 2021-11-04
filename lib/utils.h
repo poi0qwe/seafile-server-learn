@@ -80,7 +80,7 @@ void
 seaf_stat_from_find_data (WIN32_FIND_DATAW *fdata, SeafStat *st);
 #endif
 
-int seaf_set_file_time (const char *path, guint64 mtime); // 设置seafile文件时间
+int seaf_set_file_time (const char *path, guint64 mtime); // 设置文件修改时间
 
 #ifdef WIN32 // Windows
 wchar_t *

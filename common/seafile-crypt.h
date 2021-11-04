@@ -19,7 +19,7 @@
 #define BLK_SIZE 16
 #define ENCRYPT_BLK_SIZE BLK_SIZE
 
-struct SeafileCrypt {
+struct SeafileCrypt { // 加密上下文（密钥）
     int version;
     unsigned char key[32];   /* set when enc_version >= 1 */
     unsigned char iv[16];

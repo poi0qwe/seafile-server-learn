@@ -1,4 +1,5 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* 文件系统管理 */
 
 #ifndef SEAF_FILE_MGR_H
 #define SEAF_FILE_MGR_H
@@ -15,166 +16,166 @@
 #define CURRENT_DIR_OBJ_VERSION 1
 #define CURRENT_SEAFILE_OBJ_VERSION 1
 
-typedef struct _SeafFSManager SeafFSManager;
-typedef struct _SeafFSObject SeafFSObject;
-typedef struct _Seafile Seafile;
-typedef struct _SeafDir SeafDir;
-typedef struct _SeafDirent SeafDirent;
+typedef struct _SeafFSManager SeafFSManager; // 文件系统管理器
+typedef struct _SeafFSObject SeafFSObject; // 文件系统对象（文件和目录的基类）
+typedef struct _Seafile Seafile; // 文件
+typedef struct _SeafDir SeafDir; // 目录
+typedef struct _SeafDirent SeafDirent; // 目录项
 
-typedef enum {
-    SEAF_METADATA_TYPE_INVALID,
-    SEAF_METADATA_TYPE_FILE,
-    SEAF_METADATA_TYPE_LINK,
-    SEAF_METADATA_TYPE_DIR,
+typedef enum { // 元数据类型
+    SEAF_METADATA_TYPE_INVALID, // 无效
+    SEAF_METADATA_TYPE_FILE, // 文件
+    SEAF_METADATA_TYPE_LINK, // 链接
+    SEAF_METADATA_TYPE_DIR, // 目录
 } SeafMetadataType;
 
 /* Common to seafile and seafdir objects. */
-struct _SeafFSObject {
+struct _SeafFSObject { // 文件系统对象
     int type;
 };
 
-struct _Seafile {
-    SeafFSObject object;
-    int         version;
-    char        file_id[41];
-    guint64     file_size;
-    guint32     n_blocks;
-    char        **blk_sha1s;
-    int         ref_count;
+struct _Seafile { // 文件
+    SeafFSObject object; // 基类
+    int         version; // seafile版本
+    char        file_id[41]; // 文件id
+    guint64     file_size; // 文件大小
+    guint32     n_blocks; // 块数
+    char        **blk_sha1s; // 块索引
+    int         ref_count; // 引用次数
 };
 
-typedef struct SearchResult {
-    char *path;
-    gint64 size;
-    gint64 mtime;
+typedef struct SearchResult { // 搜索结果
+    char *path; // 路径
+    gint64 size; // 大小
+    gint64 mtime; // 最后修改时间
     gboolean is_dir;
 } SearchResult;
 
-void
+void // 引用一个文件（用于GC）
 seafile_ref (Seafile *seafile);
 
-void
+void // 解除引用
 seafile_unref (Seafile *seafile);
 
-int
+int // 保存文件
 seafile_save (SeafFSManager *fs_mgr,
-              const char *repo_id,
+              const char *repo_id, // 仓库id
               int version,
-              Seafile *file);
+              Seafile *file); // 文件
 
-#define SEAF_DIR_NAME_LEN 256
+#define SEAF_DIR_NAME_LEN 256 // 目录名长度(最大值)
 
-struct _SeafDirent {
-    int        version;
-    guint32    mode;
-    char       id[41];
+struct _SeafDirent { // 目录项（指向目录或者文件）
+    int        version; // seafile版本
+    guint32    mode; // 模式
+    char       id[41]; // 指向id
     guint32    name_len;
-    char       *name;
+    char       *name; // 名称（目录名或文件名）
 
-    /* attributes for version > 0 */
-    gint64     mtime;
-    char       *modifier;       /* for files only */
-    gint64     size;            /* for files only */
+    /* attributes for version > 0 */ // 版本1以上
+    gint64     mtime; // 修改时间
+    char       *modifier;       /* for files only */ // 修改者（仅对文件）
+    gint64     size;            /* for files only */ // 大小（仅对文件）
 };
 
-struct _SeafDir {
-    SeafFSObject object;
-    int    version;
-    char   dir_id[41];
-    GList *entries;
+struct _SeafDir { // 目录
+    SeafFSObject object; // 基类
+    int    version; // 版本
+    char   dir_id[41]; // 目录id
+    GList *entries; // 目录项列表
 
-    /* data in on-disk format. */
-    void  *ondisk;
-    int    ondisk_size;
+    /* data in on-disk format. */ // 硬盘存储数据
+    void  *ondisk; // 目录字节流
+    int    ondisk_size; // 字节流大小
 };
 
-SeafDir *
+SeafDir * // 新建目录对象
 seaf_dir_new (const char *id, GList *entries, int version);
 
-void 
+void  // 释放目录对象
 seaf_dir_free (SeafDir *dir);
 
-SeafDir *
+SeafDir * // 字节流转目录对象
 seaf_dir_from_data (const char *dir_id, uint8_t *data, int len,
                     gboolean is_json);
 
-void *
+void * // 目录对象转字节流
 seaf_dir_to_data (SeafDir *dir, int *len);
 
-int 
+int // 保存目录对象
 seaf_dir_save (SeafFSManager *fs_mgr,
                const char *repo_id,
                int version,
                SeafDir *dir);
 
-SeafDirent *
-seaf_dirent_new (int version, const char *sha1, int mode, const char *name,
-                 gint64 mtime, const char *modifier, gint64 size);
+SeafDirent * // 新建目录项对象
+seaf_dirent_new(int version, const char *sha1, int mode, const char *name,
+                gint64 mtime, const char *modifier, gint64 size);
 
-void
+void // 释放目录项对象
 seaf_dirent_free (SeafDirent *dent);
 
-SeafDirent *
+SeafDirent * // 复制目录项对象
 seaf_dirent_dup (SeafDirent *dent);
 
-int
+int // 字节流转对象类型（即元数据）
 seaf_metadata_type_from_data (const char *obj_id,
                               uint8_t *data, int len, gboolean is_json);
 
-/* Parse an fs object without knowing its type. */
-SeafFSObject *
+/* Parse an fs object without knowing its type. */ // 未知类型时，获取基类
+SeafFSObject * // 字节流转文件系统对象
 seaf_fs_object_from_data (const char *obj_id,
                           uint8_t *data, int len,
                           gboolean is_json);
 
-void
+void // 释放文件系统对象
 seaf_fs_object_free (SeafFSObject *obj);
 
-typedef struct {
-    /* TODO: GHashTable may be inefficient when we have large number of IDs. */
-    GHashTable  *block_hash;
-    GPtrArray   *block_ids;
-    uint32_t     n_blocks;
-    uint32_t     n_valid_blocks;
+typedef struct { // 块表
+    /* TODO: GHashTable may be inefficient when we have large number of IDs. */ // id多的情况下，哈希可能效率比较低
+    GHashTable  *block_hash; // 块哈希表
+    GPtrArray   *block_ids; // 块id表
+    uint32_t     n_blocks; // 块数
+    uint32_t     n_valid_blocks; // 有效块数
 } BlockList;
 
-BlockList *
+BlockList * // 创建新的块表
 block_list_new ();
 
-void
+void // 释放块表
 block_list_free (BlockList *bl);
 
-void
+void // 块表插入新的块id
 block_list_insert (BlockList *bl, const char *block_id);
 
 /* Return a blocklist containing block ids which are in @bl1 but
  * not in @bl2.
  */
-BlockList *
+BlockList * // 块表1-块表2 （集合差运算）
 block_list_difference (BlockList *bl1, BlockList *bl2);
 
-struct _SeafileSession;
+struct _SeafileSession; // 声明seafile会话
 
-typedef struct _SeafFSManagerPriv SeafFSManagerPriv;
+typedef struct _SeafFSManagerPriv SeafFSManagerPriv; // 声明文件系统管理器私有域
 
-struct _SeafFSManager {
+struct _SeafFSManager { // 文件系统管理器
     struct _SeafileSession *seaf;
 
-    struct SeafObjStore *obj_store;
+    struct SeafObjStore *obj_store; // 对象存储
 
-    SeafFSManagerPriv *priv;
+    SeafFSManagerPriv *priv; // 私有域
 };
 
-SeafFSManager *
+SeafFSManager * // 新建文件系统管理器
 seaf_fs_manager_new (struct _SeafileSession *seaf,
                      const char *seaf_dir);
 
-int
+int // 初始化文件系统管理器
 seaf_fs_manager_init (SeafFSManager *mgr);
 
 #ifndef SEAFILE_SERVER
 
-int 
+int // 客户端需要检查文件是否冲突，并作出相应处理
 seaf_fs_manager_checkout_file (SeafFSManager *mgr, 
                                const char *repo_id,
                                int version,
@@ -195,7 +196,7 @@ seaf_fs_manager_checkout_file (SeafFSManager *mgr,
  * Check in blocks and create seafile/symlink object.
  * Returns sha1 id for the seafile/symlink object in @sha1 parameter.
  */
-int
+int // 根据块的路径进行索引（检查并硬链接，然后生成seafile对象）
 seaf_fs_manager_index_file_blocks (SeafFSManager *mgr,
                                    const char *repo_id,
                                    int version,
@@ -204,21 +205,21 @@ seaf_fs_manager_index_file_blocks (SeafFSManager *mgr,
                                    unsigned char sha1[],
                                    gint64 file_size);
 
-int
+int // 根据块的路径进行索引（只检查并硬链接）
 seaf_fs_manager_index_raw_blocks (SeafFSManager *mgr,
                                   const char *repo_id,
                                   int version,
                                   GList *paths,
                                   GList *blockids);
 
-int
+int // 重新进行索引（只检查，然后生成seafile对象）（若块不存在，则报错）
 seaf_fs_manager_index_existed_file_blocks (SeafFSManager *mgr,
                                            const char *repo_id,
                                            int version,
                                            GList *blockids,
                                            unsigned char sha1[],
                                            gint64 file_size);
-int
+int // 对文件分块并索引
 seaf_fs_manager_index_blocks (SeafFSManager *mgr,
                               const char *repo_id,
                               int version,
@@ -230,13 +231,13 @@ seaf_fs_manager_index_blocks (SeafFSManager *mgr,
                               gboolean use_cdc,
                               gint64 *indexed);
 
-Seafile *
+Seafile * // 获取seafile对象
 seaf_fs_manager_get_seafile (SeafFSManager *mgr,
                              const char *repo_id,
                              int version,
                              const char *file_id);
 
-SeafDir *
+SeafDir * // 获取seadir对象
 seaf_fs_manager_get_seafdir (SeafFSManager *mgr,
                              const char *repo_id,
                              int version,
@@ -244,20 +245,20 @@ seaf_fs_manager_get_seafdir (SeafFSManager *mgr,
 
 /* Make sure entries in the returned dir is sorted in descending order.
  */
-SeafDir *
+SeafDir * // 获取seafdir，且seafdirent(根据名称)降序
 seaf_fs_manager_get_seafdir_sorted (SeafFSManager *mgr,
                                     const char *repo_id,
                                     int version,
                                     const char *dir_id);
 
-SeafDir *
+SeafDir * // 根据相对路径获取seafdir，且seafdirent降序
 seaf_fs_manager_get_seafdir_sorted_by_path (SeafFSManager *mgr,
                                             const char *repo_id,
                                             int version,
-                                            const char *root_id,
+                                            const char *root_id, // seafdir的id（** root_id表示是commit->root_id **）
                                             const char *path);
 
-int
+int // 记录目录下的所有块
 seaf_fs_manager_populate_blocklist (SeafFSManager *mgr,
                                     const char *repo_id,
                                     int version,
@@ -266,7 +267,7 @@ seaf_fs_manager_populate_blocklist (SeafFSManager *mgr,
 
 /*
  * For dir object, set *stop to TRUE to stop traversing the subtree.
- */
+ */ // 遍历文件树回调函数；当stop为真则停止
 typedef gboolean (*TraverseFSTreeCallback) (SeafFSManager *mgr,
                                             const char *repo_id,
                                             int version,
@@ -275,7 +276,7 @@ typedef gboolean (*TraverseFSTreeCallback) (SeafFSManager *mgr,
                                             void *user_data,
                                             gboolean *stop);
 
-int
+int // 遍历文件树
 seaf_fs_manager_traverse_tree (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
@@ -288,10 +289,10 @@ typedef gboolean (*TraverseFSPathCallback) (SeafFSManager *mgr,
                                             const char *path,
                                             SeafDirent *dent,
                                             void *user_data,
-                                            gboolean *stop);
+                                            gboolean *stop); // 遍历路径回调函数
 
 int
-seaf_fs_manager_traverse_path (SeafFSManager *mgr,
+seaf_fs_manager_traverse_path (SeafFSManager *mgr, // 根据相对路径遍历文件树
                                const char *repo_id,
                                int version,
                                const char *root_id,
@@ -299,32 +300,32 @@ seaf_fs_manager_traverse_path (SeafFSManager *mgr,
                                TraverseFSPathCallback callback,
                                void *user_data);
 
-gboolean
+gboolean // 判断对象是否存在
 seaf_fs_manager_object_exists (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
                                const char *id);
 
-void
+void // 删除对象
 seaf_fs_manager_delete_object (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
                                const char *id);
 
-gint64
+gint64 // 获取文件大小
 seaf_fs_manager_get_file_size (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
                                const char *file_id);
 
-gint64
+gint64 // 获取目录大小
 seaf_fs_manager_get_fs_size (SeafFSManager *mgr,
                              const char *repo_id,
                              int version,
                              const char *root_id);
 
 #ifndef SEAFILE_SERVER
-int
+int // Seafile文件系统写块文件方法（替换默认写块文件方法）
 seafile_write_chunk (const char *repo_id,
                      int version,
                      CDCDescriptor *chunk,
@@ -334,26 +335,26 @@ seafile_write_chunk (const char *repo_id,
 int
 seafile_check_write_chunk (CDCDescriptor *chunk,
                            uint8_t *sha1,
-                           gboolean write_data);
+                           gboolean write_data); // 只声明，无实现
 #endif /* SEAFILE_SERVER */
 
-uint32_t
+uint32_t // 计算块的大小（未被用到）
 calculate_chunk_size (uint64_t total_size);
 
-int
+int // 统计目录中的文件数目
 seaf_fs_manager_count_fs_files (SeafFSManager *mgr,
                                 const char *repo_id,
                                 int version,
                                 const char *root_id);
 
-SeafDir *
-seaf_fs_manager_get_seafdir_by_path(SeafFSManager *mgr,
+SeafDir * // 根据相对路径获取seafdir
+seaf_fs_manager_get_seafdir_by_path (SeafFSManager *mgr,
                                     const char *repo_id,
                                     int version,
                                     const char *root_id,
                                     const char *path,
                                     GError **error);
-char *
+char * // 根据相对路径获取seafile的id
 seaf_fs_manager_get_seafile_id_by_path (SeafFSManager *mgr,
                                         const char *repo_id,
                                         int version,
@@ -361,7 +362,7 @@ seaf_fs_manager_get_seafile_id_by_path (SeafFSManager *mgr,
                                         const char *path,
                                         GError **error);
 
-char *
+char * // 根据相对路径获取对象id
 seaf_fs_manager_path_to_obj_id (SeafFSManager *mgr,
                                 const char *repo_id,
                                 int version,
@@ -370,7 +371,7 @@ seaf_fs_manager_path_to_obj_id (SeafFSManager *mgr,
                                 guint32 *mode,
                                 GError **error);
 
-char *
+char * // 根据相对路径获取seafdir的id
 seaf_fs_manager_get_seafdir_id_by_path (SeafFSManager *mgr,
                                         const char *repo_id,
                                         int version,
@@ -378,7 +379,7 @@ seaf_fs_manager_get_seafdir_id_by_path (SeafFSManager *mgr,
                                         const char *path,
                                         GError **error);
 
-SeafDirent *
+SeafDirent * // 根据相对路径获取seafdirent
 seaf_fs_manager_get_dirent_by_path (SeafFSManager *mgr,
                                     const char *repo_id,
                                     int version,
@@ -388,7 +389,7 @@ seaf_fs_manager_get_dirent_by_path (SeafFSManager *mgr,
 
 /* Check object integrity. */
 
-gboolean
+gboolean // 检查seafdir
 seaf_fs_manager_verify_seafdir (SeafFSManager *mgr,
                                 const char *repo_id,
                                 int version,
@@ -396,7 +397,7 @@ seaf_fs_manager_verify_seafdir (SeafFSManager *mgr,
                                 gboolean verify_id,
                                 gboolean *io_error);
 
-gboolean
+gboolean // 检查seafile
 seaf_fs_manager_verify_seafile (SeafFSManager *mgr,
                                 const char *repo_id,
                                 int version,
@@ -404,7 +405,7 @@ seaf_fs_manager_verify_seafile (SeafFSManager *mgr,
                                 gboolean verify_id,
                                 gboolean *io_error);
 
-gboolean
+gboolean // 检查对象
 seaf_fs_manager_verify_object (SeafFSManager *mgr,
                                const char *repo_id,
                                int version,
@@ -412,23 +413,23 @@ seaf_fs_manager_verify_object (SeafFSManager *mgr,
                                gboolean verify_id,
                                gboolean *io_error);
 
-int
+int // 根据仓库的版本获取seafdir的版本
 dir_version_from_repo_version (int repo_version);
 
-int
+int // 根据仓库的版本获取seafile的版本
 seafile_version_from_repo_version (int repo_version);
 
 struct _CDCFileDescriptor;
-void
+void // 获取seafile对象SHA1
 seaf_fs_manager_calculate_seafile_id_json (int repo_version,
                                            struct _CDCFileDescriptor *cdc,
                                            guint8 *file_id_sha1);
 
-int
+int // 移除存储
 seaf_fs_manager_remove_store (SeafFSManager *mgr,
                               const char *store_id);
 
-GObject *
+GObject * // 根据相对路径获取文件数量
 seaf_fs_manager_get_file_count_info_by_path (SeafFSManager *mgr,
                                              const char *repo_id,
                                              int version,
@@ -436,7 +437,7 @@ seaf_fs_manager_get_file_count_info_by_path (SeafFSManager *mgr,
                                              const char *path,
                                              GError **error);
 
-GList *
+GList * // 搜索文件（按文件名），返回结果列表
 seaf_fs_manager_search_files (SeafFSManager *mgr,
                               const char *repo_id,
                               const char *str);

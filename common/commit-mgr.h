@@ -19,7 +19,7 @@ struct _SeafCommit { // seafile提交对象
 
     char        commit_id[41]; // 提交id
     char        repo_id[37]; // 仓库id
-    char        root_id[41];    /* the fs root */ // 根id
+    char        root_id[41];    /* the fs root */ // 根目录id
     char       *desc; // 提交描述
     char       *creator_name; // 创建者名字
     char        creator_id[41]; // 创建者id

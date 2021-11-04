@@ -28,11 +28,11 @@ typedef enum {
  * VC_INDEPENDENT: if c1 and c2 has no inheritent relationship.
  * Returns VC_INDEPENDENT if c1 or c2 doesn't exist.
  */
-VCCompareResult
+VCCompareResult // 假提交，返回结果
 vc_compare_commits (const char *repo_id, int version,
                     const char *c1, const char *c2);
 
-char *
+char * // 生成冲突路径
 gen_conflict_path (const char *original_path,
                    const char *modifier,
                    gint64 mtime);

@@ -340,7 +340,7 @@ socket网络编程相关。
     #define SeafStat struct stat // 定义seafile状态结构体
     int seaf_stat (const char *path, SeafStat *st); // 根据seafile的路径获取状态
     int seaf_fstat(int fd, SeafStat *st);           // 根据seafile的文件描述符获取状态
-    int seaf_set_file_time (const char *path, guint64 mtime); // 设置seafile文件最后修改时间
+    int seaf_set_file_time (const char *path, guint64 mtime); // 设置文件最后修改时间
     
     int seaf_util_unlink (const char *path); // 删除seafile文件
     int seaf_util_rmdir (const char *path); // 删除seafile目录
@@ -422,7 +422,7 @@ socket网络编程相关。
     gboolean is_permission_valid (const char *perm); // 判断权限是否有效（规定'r'和'rw'有效）
     ```
 
-1. ### CCNET
+4. ### CCNET
 
     ```c++
     gboolean is_object_id_valid (const char *obj_id); // 判断ccent对象是否有效
@@ -438,14 +438,14 @@ socket网络编程相关。
     gint64 ccnet_calc_directory_size (const char *path, GError **error); // 获取ccnet对象目录的大小
     ```
 
-2. ### 时间
+5. ### 时间
     
     ```c++
     struct timeval timeval_from_msec (uint64_t milliseconds); // ms转timeval
     gint64 get_current_time(); // 获取系统时间
     ```
 
-3. ### 加密解密
+6. ### 加密解密
 
     ```c++
     int
@@ -464,7 +464,7 @@ socket网络编程相关。
                 const int code_len);
     ```
 
-4. ### 网络
+7. ### 网络
 
     ```c++
     static inline uint64_t bswap64 (uint64_t val); // 大小端互换
@@ -474,14 +474,14 @@ socket网络编程相关。
     static inline uintX_t getxbit(uint8_t **ptr); // 读出Xbit
     ```
 
-5. ### 进程
+8. ### 进程
 
     ```c++
     gboolean process_is_running(const char *name); // 根据进程名判断进程是否正在运行
     int count_process (const char *process_name_in); // 获取某进程正在运行的实例的数目
     ```
 
-6. ### json
+9. ### json
 
     ```c++
     const char * json_object_get_string_member (json_t *object, const char *key); // object[key] -> str
@@ -491,7 +491,7 @@ socket网络编程相关。
     void json_object_set_int_member (json_t *object, const char *key, gint64 value); // object[key] = (int)
     ```
 
-7.  ### 压缩解压缩
+10. ### 压缩解压缩
 
     ```c++
     int seaf_compress (guint8 *input, int inlen, guint8 **output, int *outlen); // 压缩seafile文件数据

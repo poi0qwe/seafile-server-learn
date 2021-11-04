@@ -107,7 +107,7 @@ do {                                                         \
     memcpy (file_descr->blk_sha1s +                          \
             file_descr->block_nr * CHECKSUM_LENGTH,          \
             chunk_descr.checksum, CHECKSUM_LENGTH);          \ // 将checksum作为此块的sha1值，加入到blk_sha1s的末尾
-    SHA1_Update (&file_ctx, chunk_descr.checksum, 20);       \ // 更新SHA1至checksum
+    SHA1_Update (&file_ctx, chunk_descr.checksum, 20);       \ // 更新SHA1至checksum（哈希链）
     file_descr->block_nr++;                                  \ // 块数加一
     offset += _block_sz;                                     \ // 偏移加上块的大小
                                                              \
