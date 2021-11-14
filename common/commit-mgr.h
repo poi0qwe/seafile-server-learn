@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* 提交管理（提交信息存储在硬盘中(json的格式，seafobj的形式)，提交管理就是从硬盘读写提交信息） */
+/* 提交管理（提交信息存储在硬盘中(json的格式)，提交管理就是从硬盘读写提交信息） */
 
 #ifndef SEAF_COMMIT_MGR_H
 #define SEAF_COMMIT_MGR_H
@@ -24,17 +24,17 @@ struct _SeafCommit { // seafile提交对象
     char       *creator_name; // 创建者名字
     char        creator_id[41]; // 创建者id
     guint64     ctime;          /* creation time */ // 创建时间
-    char       *parent_id; // 父id
-    char       *second_parent_id; // 祖父id
+    char       *parent_id; // 父提交id
+    char       *second_parent_id; // 第二父提交id（合并两个commit得到新的commit）
     char       *repo_name; // 仓库名
-    char       *repo_desc;
+    char       *repo_desc; // 仓库排列顺序
     char       *repo_category; // 仓库分类
     char       *device_name; // 设备名
     char       *client_version; // 客户端版本
 
     gboolean    encrypted; // 是否已加密
     int         enc_version; // 加密版本
-    char       *magic;
+    char       *magic; // 仓库密码校验
     char       *random_key; // 随机密钥
     char       *salt; // 盐
     gboolean    no_local_history; // 有无本地记录
@@ -77,7 +77,7 @@ seaf_commit_unref (SeafCommit *commit);
    Note, if currently there are multi branches, this function will be called again. 
    So, set stop to TRUE not always stop traversing the history graph.
 */
-// 历史图遍历函数（若一次提交对应多个分支，则每个分支都会执行一遍；设置stop为TRUE以终止遍历）
+// 提交历史图遍历函数（若一次提交对应多个分支，则每个分支都会执行一遍；设置stop为TRUE以终止遍历）
 typedef gboolean (*CommitTraverseFunc) (SeafCommit *commit, void *data, gboolean *stop);
 
 struct _SeafileSession;
@@ -162,8 +162,9 @@ seaf_commit_manager_get_commit_compatible (SeafCommitManager *mgr,
  * return FALSE if some commits is missing, TRUE otherwise.
  */
 // 拓扑序遍历提交图
-// 基于提交时间
+// 基于提交时间（从最新向最老）
 // 如果一些提交丢失了返回FALSE
+// 只要父提交不存在，马上返回错误
 gboolean
 seaf_commit_manager_traverse_commit_tree (SeafCommitManager *mgr,
                                           const char *repo_id,
@@ -177,7 +178,7 @@ seaf_commit_manager_traverse_commit_tree (SeafCommitManager *mgr,
  * The same as the above function, but stops traverse down if parent commit
  * doesn't exists, instead of returning error.
  */
-// 同上，但只要父提交不存在，马上返回错误
+// 同上，但跳过缺失的父提交
 gboolean
 seaf_commit_manager_traverse_commit_tree_truncated (SeafCommitManager *mgr,
                                                     const char *repo_id,
@@ -203,13 +204,13 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr,
                                                      void *data,
                                                      char **next_start_commit,
                                                      gboolean skip_errors); // 遍历历史提交图，有限制
-
+// 检查提交是否存在
 gboolean
 seaf_commit_manager_commit_exists (SeafCommitManager *mgr,
                                    const char *repo_id,
                                    int version,
                                    const char *id); // 判断提交存不存在
-
+// 移除仓库
 int
 seaf_commit_manager_remove_store (SeafCommitManager *mgr,
                                   const char *store_id); // 释放提交管理器空间

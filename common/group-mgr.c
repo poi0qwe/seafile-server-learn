@@ -308,18 +308,18 @@ create_group_common (CcnetGroupManager *mgr,
             goto error;
     }
 
-    if (parent_group_id == -1) {
-        g_string_printf (sql, "INSERT INTO GroupStructure (group_id, path) VALUES (?,'%d')", group_id);
+    if (parent_group_id == -1) { // 顶级组
+        g_string_printf (sql, "INSERT INOT GroupStructure (group_id, path) VALUES (?,'%d')", group_id);
         if (seaf_db_trans_query (trans, sql->str, 1, "int", group_id) < 0)
             goto error;
-    } else if (parent_group_id > 0) {
+    } else if (parent_group_id > 0) { // 非顶级组
         g_string_printf (sql, "SELECT path FROM GroupStructure WHERE group_id=?");
         char *path = NULL;
         seaf_db_trans_foreach_selected_row (trans, sql->str, get_group_path_cb,
-                                             &path, 1, "int", parent_group_id);
+                                             &path, 1, "int", parent_group_id); // 获取父路径
         if (!path)
             goto error;
-        g_string_printf (sql, "INSERT INTO GroupStructure (group_id, path) VALUES (?, '%s, %d')", path, group_id);
+        g_string_printf (sql, "INSERT INTO GroupStructure (group_id, path) VALUES (?, '%s, %d')", path, group_id); // 产生新的路径（path格式：`A, B, C`）
         if (seaf_db_trans_query (trans, sql->str, 1, "int", group_id) < 0) {
             g_free (path);
             goto error;

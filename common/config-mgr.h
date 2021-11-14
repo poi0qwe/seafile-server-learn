@@ -1,3 +1,7 @@
+/* 配置管理 */
+// 配置被存储在数据库中
+// 读取时优先读取数据库中的值，没有则读取配置文件；保存时保存至数据库
+
 #ifndef SEAF_CONFIG_MGR_H
 #define SEAF_CONFIG_MGR_H
 

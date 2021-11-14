@@ -1,3 +1,4 @@
+/* 配置管理 */
 #include "common.h"
 #include "config-mgr.h"
 #include "seaf-db.h"

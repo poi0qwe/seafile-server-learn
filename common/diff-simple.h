@@ -12,12 +12,12 @@
 #define DIFF_TYPE_COMMITS               'C' /* diff between two commits*/ // 两个提交间的差异
 
 // 差异状态
-#define DIFF_STATUS_ADDED               'A' // 被增加
+#define DIFF_STATUS_ADDED               'A' // 被添加
 #define DIFF_STATUS_DELETED             'D' // 被删除
 #define DIFF_STATUS_MODIFIED	        'M' // 被修改
 #define DIFF_STATUS_RENAMED             'R' // 被重命名
-#define DIFF_STATUS_UNMERGED		'U' // 未合并
-#define DIFF_STATUS_DIR_ADDED           'B' // 目录被增加
+#define DIFF_STATUS_UNMERGED		    'U' // 未合并
+#define DIFF_STATUS_DIR_ADDED           'B' // 目录被添加
 #define DIFF_STATUS_DIR_DELETED         'C' // 目录被删除
 #define DIFF_STATUS_DIR_RENAMED         'E' // 目录被重命名
 
@@ -27,15 +27,15 @@ enum {
     /* I and others modified the same file differently. */
     STATUS_UNMERGED_BOTH_CHANGED, // 两者都被修改：相同文件被修改为不同结果
     /* I and others created the same file with different contents. */
-    STATUS_UNMERGED_BOTH_ADDED, // 两者都被增加：相同的文件被增加了不同的内容
+    STATUS_UNMERGED_BOTH_ADDED, // 两者都被添加：两个合并都添加了相同的文件
     /* I removed a file while others modified it. */
     STATUS_UNMERGED_I_REMOVED, // 一个移除了文件，一个修改了文件
     /* Others removed a file while I modified it. */
-    STATUS_UNMERGED_OTHERS_REMOVED, // 上面反过来
+    STATUS_UNMERGED_OTHERS_REMOVED, // 反之
     /* I replace a directory with a file while others modified files under the directory. */
     STATUS_UNMERGED_DFC_I_ADDED_FILE, // 一个将目录替换为了文件，另一个修改了目录中的文件
     /* Others replace a directory with a file while I modified files under the directory. */
-    STATUS_UNMERGED_DFC_OTHERS_ADDED_FILE, // 上面反过来
+    STATUS_UNMERGED_DFC_OTHERS_ADDED_FILE, // 反之
 };
 
 typedef struct DiffEntry { // 差异项
@@ -71,10 +71,10 @@ diff_commit_roots (const char *store_id, int version,
                    const char *root1, const char *root2, GList **results,
                    gboolean fold_dir_diff);
 
-int // 根据差异，合并提交
+int // 比对提交的差异（与两个父提交）
 diff_merge (SeafCommit *merge, GList **results, gboolean fold_dir_diff);
 
-int // 根据差异，合并提交；给定根目录
+int // 比对提交的差异；给定根目录
 diff_merge_roots (const char *store_id, int version,
                   const char *merged_root, const char *p1_root, const char *p2_root,
                   GList **results, gboolean fold_dir_diff);

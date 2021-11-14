@@ -8,7 +8,7 @@ typedef struct SeafMqManagerPriv {
     GHashTable *chans;
 } SeafMqManagerPriv;
 
-SeafMqManager *
+SeafMqManager * // 创建新的
 seaf_mq_manager_new ()
 {
     SeafMqManager *mgr = g_new0 (SeafMqManager, 1);
@@ -20,7 +20,7 @@ seaf_mq_manager_new ()
     return mgr;
 }
 
-static GAsyncQueue *
+static GAsyncQueue * // 创建新的事件频道
 seaf_mq_manager_channel_new (SeafMqManager *mgr, const char *channel)
 {
     GAsyncQueue *async_queue = NULL;
@@ -31,7 +31,7 @@ seaf_mq_manager_channel_new (SeafMqManager *mgr, const char *channel)
     return async_queue;
 }
 
-int
+int // 发布消息
 seaf_mq_manager_publish_event (SeafMqManager *mgr, const char *channel, const char *content)
 {
     int ret = 0;
@@ -41,8 +41,8 @@ seaf_mq_manager_publish_event (SeafMqManager *mgr, const char *channel, const ch
         return -1;
     }
 
-    GAsyncQueue *async_queue = g_hash_table_lookup (mgr->priv->chans, channel);
-    if (!async_queue) {
+    GAsyncQueue *async_queue = g_hash_table_lookup (mgr->priv->chans, channel); // 异步队列
+    if (!async_queue) { // 没有，则创建频道
         async_queue = seaf_mq_manager_channel_new(mgr, channel);
     }
 
@@ -59,8 +59,8 @@ seaf_mq_manager_publish_event (SeafMqManager *mgr, const char *channel, const ch
     return ret;
 }
 
-json_t *
-seaf_mq_manager_pop_event (SeafMqManager *mgr, const char *channel)
+json_t * // 弹出消息
+seaf_mq_manager_pop_event(SeafMqManager *mgr, const char *channel)
 {
     GAsyncQueue *async_queue = g_hash_table_lookup (mgr->priv->chans, channel);
     if (!async_queue)

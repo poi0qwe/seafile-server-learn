@@ -1,3 +1,5 @@
+/* 异步消息队列 */
+
 #ifndef SEAF_MQ_MANAGER_H
 #define SEAF_MQ_MANAGER_H
 
@@ -12,13 +14,13 @@ typedef struct SeafMqManager {
     struct SeafMqManagerPriv *priv;
 } SeafMqManager;
 
-SeafMqManager *
+SeafMqManager * // 新建
 seaf_mq_manager_new ();
 
-int
+int // 消息传给频道
 seaf_mq_manager_publish_event (SeafMqManager *mgr, const char *channel, const char *content);
 
-json_t *
+json_t * // 从频道中取出（一个json，格式：{ 'ctime': 创建时间, 'content': 消息内容 }）
 seaf_mq_manager_pop_event (SeafMqManager *mgr, const char *channel);
 
 #endif

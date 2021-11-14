@@ -318,7 +318,7 @@ compare_commit_by_time (gconstpointer a, gconstpointer b, gpointer unused) // �
     const SeafCommit *commit_b = b;
 
     /* Latest commit comes first in the list. */
-    return (commit_b->ctime - commit_a->ctime); // 返回时间差
+    return (commit_b->ctime - commit_a->ctime); // 时间倒序
 }
 
 inline static int
@@ -329,14 +329,14 @@ insert_parent_commit (GList **list, GHashTable *hash,
     SeafCommit *p;
     char *key;
 
-    if (g_hash_table_lookup (hash, parent_id) != NULL) // 检测父提交是否存在内存
+    if (g_hash_table_lookup (hash, parent_id) != NULL) // 检测父提交是否存在（去重）
         return 0;
 
     p = seaf_commit_manager_get_commit (seaf->commit_mgr,
                                         repo_id, version,
                                         parent_id); // 硬盘获取父提交
     if (!p) { // 父提交不存在
-        if (allow_truncate) // 是否允许终止
+        if (allow_truncate) // 是否允许跳过
             return 0;
         seaf_warning ("Failed to find commit %s\n", parent_id);
         return -1;
@@ -360,7 +360,7 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr, // 
                                                      CommitTraverseFunc func, // 遍历函数
                                                      int limit, // 次数限制
                                                      void *data, // 用户参数
-                                                     char **next_start_commit, // 下一次扫描的头
+                                                     char **next_start_commit, // 下一次扫描的开头
                                                      gboolean skip_errors) // 是否忽略错误
 {
     SeafCommit *commit;
@@ -380,7 +380,7 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr, // 
     }
 
     list = g_list_insert_sorted_with_data (list, commit,
-                                           compare_commit_by_time,
+                                           compare_commit_by_time, // 时间倒序
                                            NULL); // 插入记录到有序队列
 
     char *key = g_strdup (commit->commit_id);
@@ -389,7 +389,7 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr, // 
     int count = 0;
     while (list) { // 队列
         gboolean stop = FALSE;
-        commit = list->data;
+        commit = list->data; // 取队列头
         list = g_list_delete_link (list, list); // 去掉队头
 
         if (!func (commit, data, &stop)) { // 执行遍历函数
@@ -404,13 +404,13 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr, // 
             seaf_commit_unref (commit);
             /* stop traverse down from this commit,
              * but not stop traversing the tree 
-             */ // 停止搜索父亲，但不停止搜索别的
+             */ // 停止搜索该分支，但不停止搜索其他分支
             continue;
         }
 
-        if (commit->parent_id) { // 有父亲
+        if (commit->parent_id) { // 有父提交
             if (insert_parent_commit (&list, commit_hash, repo_id, version,
-                                      commit->parent_id, FALSE) < 0) { // 插入父亲
+                                      commit->parent_id, FALSE) < 0) { // 插入父提交
                 if (!skip_errors) {
                     seaf_commit_unref (commit);
                     ret = FALSE;
@@ -418,9 +418,9 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr, // 
                 }
             }
         }
-        if (commit->second_parent_id) { // 有祖父
+        if (commit->second_parent_id) { // 有第二父提交
             if (insert_parent_commit (&list, commit_hash, repo_id, version,
-                                      commit->second_parent_id, FALSE) < 0) { // 插入祖父
+                                      commit->second_parent_id, FALSE) < 0) { // 插入第二父提交
                 if (!skip_errors) {
                     seaf_commit_unref (commit);
                     ret = FALSE;
@@ -433,7 +433,7 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr, // 
         /* Stop when limit is reached and don't stop at unmerged branch.
          * If limit < 0, there is no limit;
          */ // 限制
-        if (limit > 0 && ++count >= limit && (!list || !list->next)) {
+        if (limit > 0 && ++count >= limit && (!list || !list->next)) { // 达到限制，则停止；前提当前不存在未合并的分支（即队列中仅包含一个元素）
             break;
         }
     }
@@ -442,8 +442,8 @@ seaf_commit_manager_traverse_commit_tree_with_limit (SeafCommitManager *mgr, // 
      * 1. list is empty, indicate scan end
      * 2. list only have one commit, as start for next scan
      */
-    // 1. 列表为空，结束扫描
-    // 2. 列表只包含一个提交，作为下一次扫描的开头
+    // 1. 队列为空，代表扫描结束
+    // 2. 否则，取队列头作为下一次扫描的开头（说明因次数限制而退出遍历）
     if (list) {
         commit = list->data;
         if (next_start_commit) {
@@ -463,7 +463,7 @@ out:
     return ret;
 }
 
-static gboolean // 拓扑遍历，同上
+static gboolean // 拓扑遍历，同上；无限次数
 traverse_commit_tree_common (SeafCommitManager *mgr,
                              const char *repo_id,
                              int version,
@@ -557,7 +557,7 @@ out:
     return ret;
 }
 
-gboolean // 封装遍历
+gboolean // 封装遍历，不允许跳过缺失
 seaf_commit_manager_traverse_commit_tree (SeafCommitManager *mgr,
                                           const char *repo_id,
                                           int version,
@@ -570,7 +570,7 @@ seaf_commit_manager_traverse_commit_tree (SeafCommitManager *mgr,
                                         func, data, skip_errors, FALSE);
 }
 
-gboolean
+gboolean // 封装遍历，允许跳过缺失
 seaf_commit_manager_traverse_commit_tree_truncated (SeafCommitManager *mgr,
                                                     const char *repo_id,
                                                     int version,
@@ -583,7 +583,7 @@ seaf_commit_manager_traverse_commit_tree_truncated (SeafCommitManager *mgr,
                                         func, data, skip_errors, TRUE);
 }
 
-gboolean
+gboolean // 是否存在提交
 seaf_commit_manager_commit_exists (SeafCommitManager *mgr,
                                    const char *repo_id,
                                    int version,
@@ -599,7 +599,7 @@ seaf_commit_manager_commit_exists (SeafCommitManager *mgr,
 }
 
 static json_t *
-commit_to_json_object (SeafCommit *commit) // 结构体转json
+commit_to_json_object (SeafCommit *commit) // 对象转json
 {
     json_t *object;
     
@@ -657,7 +657,7 @@ commit_to_json_object (SeafCommit *commit) // 结构体转json
 }
 
 static SeafCommit *
-commit_from_json_object (const char *commit_id, json_t *object) // json转结构体
+commit_from_json_object (const char *commit_id, json_t *object) // json转对象
 {
     SeafCommit *commit = NULL;
     const char *root_id;
@@ -816,7 +816,7 @@ commit_from_json_object (const char *commit_id, json_t *object) // json转结构
     return commit;
 }
 
-static SeafCommit * // 从硬盘加载json
+static SeafCommit * // 加载commit对象
 load_commit (SeafCommitManager *mgr,
              const char *repo_id,
              int version,
@@ -864,7 +864,7 @@ out:
     return commit;
 }
 
-static int // 向硬盘保存json
+static int // 保存commit对象
 save_commit (SeafCommitManager *manager,
              const char *repo_id,
              int version,
@@ -908,7 +908,7 @@ save_commit (SeafCommitManager *manager,
     return 0;
 }
 
-static void // 删除json对象
+static void // 删除commit对象，根据id
 delete_commit (SeafCommitManager *mgr,
                const char *repo_id,
                int version,

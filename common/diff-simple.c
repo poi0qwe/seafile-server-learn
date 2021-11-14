@@ -62,7 +62,7 @@ diff_entry_free (DiffEntry *de)
     g_free (de);
 }
 
-inline static gboolean
+inline static gboolean // 判断两个目录项是否相同
 dirent_same (SeafDirent *denta, SeafDirent *dentb)
 {
     return (strcmp (dentb->id, denta->id) == 0 &&
@@ -70,15 +70,15 @@ dirent_same (SeafDirent *denta, SeafDirent *dentb)
 	    denta->mtime == dentb->mtime);
 }
 
-static int
+static int // 差异文件处理（n代表路数，即文件树数目，最多三路）（dents是各文件树同构位置的目录项）
 diff_files (int n, SeafDirent *dents[], const char *basedir, DiffOptions *opt)
 {
     SeafDirent *files[3];
     int i, n_files = 0;
 
     memset (files, 0, sizeof(files[0])*n);
-    for (i = 0; i < n; ++i) {
-        if (dents[i] && S_ISREG(dents[i]->mode)) {
+    for (i = 0; i < n; ++i) { // 获取目录项对应的文件
+        if (dents[i] && S_ISREG(dents[i]->mode)) { // 要求目录项是文件
             files[i] = dents[i];
             ++n_files;
         }
@@ -87,14 +87,14 @@ diff_files (int n, SeafDirent *dents[], const char *basedir, DiffOptions *opt)
     if (n_files == 0)
         return 0;
 
-    return opt->file_cb (n, basedir, files, opt->data);
+    return opt->file_cb (n, basedir, files, opt->data); // 文件回调
 }
 
-static int
+static int // 文件树差异递归处理
 diff_trees_recursive (int n, SeafDir *trees[],
                       const char *basedir, DiffOptions *opt);
 
-static int
+static int // 差异目录处理
 diff_directories (int n, SeafDirent *dents[], const char *basedir, DiffOptions *opt)
 {
     SeafDirent *dirs[3];
@@ -115,7 +115,7 @@ diff_directories (int n, SeafDirent *dents[], const char *basedir, DiffOptions *
         return 0;
 
     gboolean recurse = TRUE;
-    ret = opt->dir_cb (n, basedir, dirs, opt->data, &recurse);
+    ret = opt->dir_cb (n, basedir, dirs, opt->data, &recurse); // 目录回调
     if (ret < 0)
         return ret;
 
@@ -123,8 +123,8 @@ diff_directories (int n, SeafDirent *dents[], const char *basedir, DiffOptions *
         return 0;
 
     memset (sub_dirs, 0, sizeof(sub_dirs[0])*n);
-    for (i = 0; i < n; ++i) {
-        if (dents[i] != NULL && S_ISDIR(dents[i]->mode)) {
+    for (i = 0; i < n; ++i) { // 获取目录项对应的目录
+        if (dents[i] != NULL && S_ISDIR(dents[i]->mode)) { // 要求目录项是目录
             dir = seaf_fs_manager_get_seafdir (seaf->fs_mgr,
                                                opt->store_id,
                                                opt->version,
@@ -143,7 +143,7 @@ diff_directories (int n, SeafDirent *dents[], const char *basedir, DiffOptions *
 
     char *new_basedir = g_strconcat (basedir, dirname, "/", NULL);
 
-    ret = diff_trees_recursive (n, sub_dirs, new_basedir, opt);
+    ret = diff_trees_recursive (n, sub_dirs, new_basedir, opt); // 向下递归
 
     g_free (new_basedir);
 
@@ -153,7 +153,7 @@ free_sub_dirs:
     return ret;
 }
 
-static int
+static int // 文件树差异递归处理
 diff_trees_recursive (int n, SeafDir *trees[],
                       const char *basedir, DiffOptions *opt)
 {
@@ -167,20 +167,20 @@ diff_trees_recursive (int n, SeafDir *trees[],
 
     for (i = 0; i < n; ++i) {
         if (trees[i])
-            ptrs[i] = trees[i]->entries;
+            ptrs[i] = trees[i]->entries; // 获取目录项列表
         else
             ptrs[i] = NULL;
     }
 
-    while (1) {
+    while (1) { // 对各节点目录项中，文件名相同的进行比对
         first_name = NULL;
-        memset (dents, 0, sizeof(dents[0])*n);
+        memset (dents, 0, sizeof(dents[0])*n); // 目录项表
         done = TRUE;
 
         /* Find the "largest" name, assuming dirents are sorted. */
-        for (i = 0; i < n; ++i) {
-            if (ptrs[i] != NULL) {
-                done = FALSE;
+        for (i = 0; i < n; ++i) { // 假定每个目录项表都按文件名从小到大排序
+            if (ptrs[i] != NULL) { // 从n个候选目录项中选出名称最大的first_name
+                done = FALSE; // 都为NULL，就是done（目录项表中无剩余元素）
                 dent = ptrs[i]->data;
                 if (!first_name)
                     first_name = dent->name;
@@ -195,30 +195,30 @@ diff_trees_recursive (int n, SeafDir *trees[],
         /*
          * Setup dir entries for all names that equal to first_name
          */
-        for (i = 0; i < n; ++i) {
+        for (i = 0; i < n; ++i) { // 对每个目录项表
             if (ptrs[i] != NULL) {
-                dent = ptrs[i]->data;
-                if (strcmp(first_name, dent->name) == 0) {
-                    dents[i] = dent;
-                    ptrs[i] = ptrs[i]->next;
+                dent = ptrs[i]->data; // 取第一个目录项
+                if (strcmp(first_name, dent->name) == 0) { // 如果该目录项等于first_name
+                    dents[i] = dent; // 选择该目录项
+                    ptrs[i] = ptrs[i]->next; // 后移
                 }
             }
         }
 
-        if (n == 2 && dents[0] && dents[1] && dirent_same(dents[0], dents[1]))
+        if (n == 2 && dents[0] && dents[1] && dirent_same(dents[0], dents[1])) // 双路，完全一致，返回
             continue;
 
         if (n == 3 && dents[0] && dents[1] && dents[2] &&
-            dirent_same(dents[0], dents[1]) && dirent_same(dents[0], dents[2]))
+            dirent_same(dents[0], dents[1]) && dirent_same(dents[0], dents[2])) // 三路，完全一致，返回
             continue;
 
         /* Diff files of this level. */
-        ret = diff_files (n, dents, basedir, opt);
+        ret = diff_files (n, dents, basedir, opt); // 进行文件差异处理
         if (ret < 0)
             return ret;
 
         /* Recurse into sub level. */
-        ret = diff_directories (n, dents, basedir, opt);
+        ret = diff_directories (n, dents, basedir, opt); // 向子目录递归，进行目录差异处理
         if (ret < 0)
             return ret;
     }
@@ -226,7 +226,7 @@ diff_trees_recursive (int n, SeafDir *trees[],
     return ret;
 }
 
-int
+int // 文件树差异处理
 diff_trees (int n, const char *roots[], DiffOptions *opt)
 {
     SeafDir **trees, *root;
@@ -239,7 +239,7 @@ diff_trees (int n, const char *roots[], DiffOptions *opt)
         root = seaf_fs_manager_get_seafdir (seaf->fs_mgr,
                                             opt->store_id,
                                             opt->version,
-                                            roots[i]);
+                                            roots[i]); // 获取根目录
         if (!root) {
             seaf_warning ("Failed to find dir %s:%s.\n", opt->store_id, roots[i]);
             g_free (trees);
@@ -248,7 +248,7 @@ diff_trees (int n, const char *roots[], DiffOptions *opt)
         trees[i] = root;
     }
 
-    ret = diff_trees_recursive (n, trees, "", opt);
+    ret = diff_trees_recursive (n, trees, "", opt); // 文件树差异递归处理
 
     for (i = 0; i < n; ++i)
         seaf_dir_free (trees[i]);
@@ -262,7 +262,7 @@ typedef struct DiffData {
     gboolean fold_dir_diff; // 是否仅顶级目录
 } DiffData;
 
-static int
+static int // 双路差异文件处理（tree2是新版本，tree1是旧版本）
 twoway_diff_files (int n, const char *basedir, SeafDirent *files[], void *vdata)
 {
     DiffData *data = vdata;
@@ -271,21 +271,21 @@ twoway_diff_files (int n, const char *basedir, SeafDirent *files[], void *vdata)
     SeafDirent *tree1 = files[0];
     SeafDirent *tree2 = files[1];
 
-    if (!tree1) {
+    if (!tree1) { // 添加
         de = diff_entry_new_from_dirent (DIFF_TYPE_COMMITS, DIFF_STATUS_ADDED,
                                          tree2, basedir);
         *results = g_list_prepend (*results, de);
         return 0;
     }
 
-    if (!tree2) {
+    if (!tree2) { // 删除
         de = diff_entry_new_from_dirent (DIFF_TYPE_COMMITS, DIFF_STATUS_DELETED,
                                          tree1, basedir);
         *results = g_list_prepend (*results, de);
         return 0;
     }
 
-    if (!dirent_same (tree1, tree2)) {
+    if (!dirent_same (tree1, tree2)) { // 修改
         de = diff_entry_new_from_dirent (DIFF_TYPE_COMMITS, DIFF_STATUS_MODIFIED,
                                          tree2, basedir);
         de->origin_size = tree1->size;
@@ -295,7 +295,7 @@ twoway_diff_files (int n, const char *basedir, SeafDirent *files[], void *vdata)
     return 0;
 }
 
-static int
+static int // 双路差异目录处理
 twoway_diff_dirs (int n, const char *basedir, SeafDirent *dirs[], void *vdata,
                   gboolean *recurse)
 {
@@ -305,24 +305,24 @@ twoway_diff_dirs (int n, const char *basedir, SeafDirent *dirs[], void *vdata,
     SeafDirent *tree1 = dirs[0];
     SeafDirent *tree2 = dirs[1];
 
-    if (!tree1) {
-        if (strcmp (tree2->id, EMPTY_SHA1) == 0 || data->fold_dir_diff) {
+    if (!tree1) { // 目录增加
+        if (strcmp (tree2->id, EMPTY_SHA1) == 0 || data->fold_dir_diff) { // 添加的是空目录
             de = diff_entry_new_from_dirent (DIFF_TYPE_COMMITS, DIFF_STATUS_DIR_ADDED,
                                              tree2, basedir);
             *results = g_list_prepend (*results, de);
-            *recurse = FALSE;
+            *recurse = FALSE; // 停止递归
         } else
             *recurse = TRUE;
         return 0;
     }
 
-    if (!tree2) {
+    if (!tree2) { // 目录删除
         de = diff_entry_new_from_dirent (DIFF_TYPE_COMMITS,
                                          DIFF_STATUS_DIR_DELETED,
                                          tree1, basedir);
         *results = g_list_prepend (*results, de);
 
-        if (data->fold_dir_diff) {
+        if (data->fold_dir_diff) { // 如果仅考虑顶级目录，不递归
             *recurse = FALSE;
         } else
             *recurse = TRUE;
@@ -332,7 +332,7 @@ twoway_diff_dirs (int n, const char *basedir, SeafDirent *dirs[], void *vdata,
     return 0;
 }
 
-int
+int // 提交差异处理
 diff_commits (SeafCommit *commit1, SeafCommit *commit2, GList **results,
               gboolean fold_dir_diff)
 {
@@ -340,7 +340,7 @@ diff_commits (SeafCommit *commit1, SeafCommit *commit2, GList **results,
     DiffOptions opt;
     const char *roots[2];
 
-    repo = seaf_repo_manager_get_repo (seaf->repo_mgr, commit1->repo_id);
+    repo = seaf_repo_manager_get_repo (seaf->repo_mgr, commit1->repo_id); // 获取仓库
     if (!repo) {
         seaf_warning ("Failed to get repo %s.\n", commit1->repo_id);
         return -1;
@@ -358,8 +358,8 @@ diff_commits (SeafCommit *commit1, SeafCommit *commit2, GList **results,
     memcpy (opt.store_id, repo->id, 36);
 #endif
     opt.version = repo->version;
-    opt.file_cb = twoway_diff_files;
-    opt.dir_cb = twoway_diff_dirs;
+    opt.file_cb = twoway_diff_files; // 设置文件差异回调函数
+    opt.dir_cb = twoway_diff_dirs;   // 设置目录差异回调函数
     opt.data = &data;
 
 #ifdef SEAFILE_SERVER
@@ -369,13 +369,13 @@ diff_commits (SeafCommit *commit1, SeafCommit *commit2, GList **results,
     roots[0] = commit1->root_id;
     roots[1] = commit2->root_id;
 
-    diff_trees (2, roots, &opt);
-    diff_resolve_renames (results);
+    diff_trees (2, roots, &opt); // 对两个root进行差异处理
+    diff_resolve_renames (results); // 判断严格重命名
 
     return 0;
 }
 
-int
+int // 根据提交的根目录进行差异处理
 diff_commit_roots (const char *store_id, int version,
                    const char *root1, const char *root2, GList **results,
                    gboolean fold_dir_diff)
@@ -404,7 +404,7 @@ diff_commit_roots (const char *store_id, int version,
     return 0;
 }
 
-static int
+static int // 三路差异处理，略
 threeway_diff_files (int n, const char *basedir, SeafDirent *files[], void *vdata)
 {
     DiffData *data = vdata;
@@ -459,9 +459,13 @@ threeway_diff_dirs (int n, const char *basedir, SeafDirent *dirs[], void *vdata,
     return 0;
 }
 
-int
-diff_merge (SeafCommit *merge, GList **results, gboolean fold_dir_diff)
+int // 提交差异比对（与两个父提交比对），结果存入results
+diff_merge (SeafCommit *merge, GList **results, gboolean fold_dir_diff) // 是否仅顶级目录(此处及下面都没用到)
 {
+    // 流程：
+    // 1. 分别获取父提交1、父提交2
+    // 2. 将该提交、父提交1、父提交2进行三路比对
+
     SeafRepo *repo = NULL;
     DiffOptions opt;
     const char *roots[3];
@@ -523,7 +527,7 @@ diff_merge (SeafCommit *merge, GList **results, gboolean fold_dir_diff)
     roots[2] = parent2->root_id;
 
     int ret = diff_trees (3, roots, &opt);
-    diff_resolve_renames (results);
+    diff_resolve_renames (results); // 判断严格重命名
 
     seaf_commit_unref (parent1);
     seaf_commit_unref (parent2);
@@ -531,7 +535,7 @@ diff_merge (SeafCommit *merge, GList **results, gboolean fold_dir_diff)
     return ret;
 }
 
-int
+int // 同上，依据根目录
 diff_merge_roots (const char *store_id, int version,
                   const char *merged_root, const char *p1_root, const char *p2_root,
                   GList **results, gboolean fold_dir_diff)
@@ -563,16 +567,17 @@ diff_merge_roots (const char *store_id, int version,
     return 0;
 }
 
+// 如果文件仅被重命名，内容不变，则经过上面的差异比对后，该文件既被判定为删除，又被判定为新建
 /* This function only resolve "strict" rename, i.e. two files must be
  * exactly the same.
  * Don't detect rename of empty files and empty dirs.
- */
-void
+ */ // 解决“严格”重命名问题，即两个文件内容一致；不检测空文件或空目录的重命名
+void // 解决重命名问题
 diff_resolve_renames (GList **diff_entries)
 {
     GHashTable *deleted_files = NULL, *deleted_dirs = NULL;
     GList *p;
-    GList *added = NULL;
+    GList *added = NULL; // 创建一个“添加”表
     DiffEntry *de;
     unsigned char empty_sha1[20];
     unsigned int deleted_empty_count = 0, deleted_empty_dir_count = 0;
@@ -581,11 +586,12 @@ diff_resolve_renames (GList **diff_entries)
 
     memset (empty_sha1, 0, 20);
 
-    /* Hash and equal functions for raw sha1. */
+    /* Hash and equal functions for raw sha1. */ // 创建两个“删除”哈希表
     deleted_dirs = g_hash_table_new (ccnet_sha1_hash, ccnet_sha1_equal);
     deleted_files = g_hash_table_new (ccnet_sha1_hash, ccnet_sha1_equal);
 
     /* Count deleted and added entries of which content is empty. */
+    // 计算差异项中空文件和空目录的数量
     for (p = *diff_entries; p != NULL; p = p->next) {
         de = p->data;
         if (memcmp (de->sha1, empty_sha1, 20) == 0) {
@@ -600,30 +606,32 @@ diff_resolve_renames (GList **diff_entries)
         }
     }
 
-    check_empty_dir = (deleted_empty_dir_count == 1 && added_empty_dir_count == 1);
-    check_empty_file = (deleted_empty_count == 1 && added_empty_count == 1);
+    check_empty_dir = (deleted_empty_dir_count == 1 && added_empty_dir_count == 1); // 差异中是否存在空目录
+    check_empty_file = (deleted_empty_count == 1 && added_empty_count == 1); // 差异中是否存在空文件
 
     /* Collect all "deleted" entries. */
+    // 处理所有“删除”类差异项
     for (p = *diff_entries; p != NULL; p = p->next) {
         de = p->data;
-        if (de->status == DIFF_STATUS_DELETED) {
+        if (de->status == DIFF_STATUS_DELETED) { // 文件被删除
             if (memcmp (de->sha1, empty_sha1, 20) == 0 &&
-                check_empty_file == FALSE)
+                check_empty_file == FALSE) // 空文件
                 continue;
 
-            g_hash_table_insert (deleted_files, de->sha1, p);
+            g_hash_table_insert (deleted_files, de->sha, p); // 将SHA1加入哈希表
         }
 
-        if (de->status == DIFF_STATUS_DIR_DELETED) {
+        if (de->status == DIFF_STATUS_DIR_DELETED) { // 目录被删除
             if (memcmp (de->sha1, empty_sha1, 20) == 0 &&
-                check_empty_dir == FALSE)
+                check_empty_dir == FALSE) // 空目录
                 continue;
 
-            g_hash_table_insert (deleted_dirs, de->sha1, p);
+            g_hash_table_insert (deleted_dirs, de->sha1, p); // 将SHA1加入哈希表
         }
     }
 
     /* Collect all "added" entries into a separate list. */
+    // 处理所有“添加”类差异项
     for (p = *diff_entries; p != NULL; p = p->next) {
         de = p->data;
         if (de->status == DIFF_STATUS_ADDED) {
@@ -646,6 +654,7 @@ diff_resolve_renames (GList **diff_entries)
     /* For each "added" entry, if we find a "deleted" entry with
      * the same content, we find a rename pair.
      */
+    // 对于每个添加项，如果在删除哈希表中找到了相同的SHA1，说明这个文件既被添加又被删除，因此是被判定为重命名
     p = added;
     while (p != NULL) {
         GList *p_add, *p_del;
@@ -692,22 +701,22 @@ diff_resolve_renames (GList **diff_entries)
     g_hash_table_destroy (deleted_files);
 }
 
-static gboolean
+static gboolean // 是否是冗余空目录
 is_redundant_empty_dir (DiffEntry *de_dir, DiffEntry *de_file)
 {
     int dir_len;
 
     if (de_dir->status == DIFF_STATUS_DIR_ADDED &&
-        de_file->status == DIFF_STATUS_DELETED)
+        de_file->status == DIFF_STATUS_DELETED) // 目录被添加、文件被删除
     {
         dir_len = strlen (de_dir->name);
-        if (strlen (de_file->name) > dir_len &&
-            strncmp (de_dir->name, de_file->name, dir_len) == 0)
+        if (strlen (de_file->name) > dir_len && // 文件路径比目录路径长
+            strncmp (de_dir->name, de_file->name, dir_len) == 0) // 路径前缀相等
             return TRUE;
     }
 
     if (de_dir->status == DIFF_STATUS_DIR_DELETED &&
-        de_file->status == DIFF_STATUS_ADDED)
+        de_file->status == DIFF_STATUS_ADDED) // 反之
     {
         dir_len = strlen (de_dir->name);
         if (strlen (de_file->name) > dir_len &&
@@ -718,12 +727,15 @@ is_redundant_empty_dir (DiffEntry *de_dir, DiffEntry *de_file)
     return FALSE;
 }
 
-/*
+/* 解决空目录相关的bug
  * An empty dir entry may be added by deleting all the files under it.
  * Similarly, an empty dir entry may be deleted by adding some file in it.
  * In both cases, we don't want to include the empty dir entry in the
  * diff results.
  */
+// 删除了所有文件后，一个空目录可能被判定为添加；
+// 同理，一个空目录可能被判定为删除，当向其中添加文件后；
+// 我们并不想把上述两种情况记录到差异结果中。
 void
 diff_resolve_empty_dirs (GList **diff_entries)
 {
@@ -734,15 +746,15 @@ diff_resolve_empty_dirs (GList **diff_entries)
     for (p = *diff_entries; p != NULL; p = p->next) {
         de = p->data;
         if (de->status == DIFF_STATUS_DIR_ADDED ||
-            de->status == DIFF_STATUS_DIR_DELETED)
+            de->status == DIFF_STATUS_DIR_DELETED) // 目录被添加或删除
             empty_dirs = g_list_prepend (empty_dirs, p);
     }
 
     for (dir = empty_dirs; dir != NULL; dir = dir->next) {
         de_dir = ((GList *)dir->data)->data;
-        for (file = *diff_entries; file != NULL; file = file->next) {
+        for (file = *diff_entries; file != NULL; file = file->next) { // 遍历所有文件
             de_file = file->data;
-            if (is_redundant_empty_dir (de_dir, de_file)) {
+            if (is_redundant_empty_dir (de_dir, de_file)) { // 判断是否是两种情况之一
                 *diff_entries = g_list_delete_link (*diff_entries, dir->data);
                 break;
             }
@@ -752,7 +764,7 @@ diff_resolve_empty_dirs (GList **diff_entries)
     g_list_free (empty_dirs);
 }
 
-int diff_unmerged_state(int mask)
+int diff_unmerged_state(int mask) // 获取未合并状态码
 {
     mask >>= 1;
     switch (mask) {
@@ -774,7 +786,7 @@ int diff_unmerged_state(int mask)
     return 0;
 }
 
-char *
+char * // 格式化结果
 format_diff_results(GList *results)
 {
     GList *ptr;
@@ -800,7 +812,7 @@ format_diff_results(GList *results)
     return g_string_free(fmt_status, FALSE);
 }
 
-inline static char *
+inline static char * // 获取路径的父目录
 get_basename (char *path)
 {
     char *slash;
@@ -810,7 +822,7 @@ get_basename (char *path)
     return (slash + 1);
 }
 
-char *
+char * // 将结果转为描述信息
 diff_results_to_description (GList *results)
 {
     GList *p;

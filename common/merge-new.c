@@ -5,13 +5,13 @@
 #define DEBUG_FLAG SEAFILE_DEBUG_MERGE
 #include "log.h"
 
-static int
+static int // 递归合并
 merge_trees_recursive (const char *store_id, int version,
                        int n, SeafDir *trees[],
                        const char *basedir,
                        MergeOptions *opt);
 
-static char *
+static char * // 生成合并冲突文件路径
 merge_conflict_filename (const char *store_id, int version,
                          MergeOptions *opt,
                          const char *basedir,
@@ -28,8 +28,8 @@ merge_conflict_filename (const char *store_id, int version,
                                       version,
                                       opt->remote_head,
                                       path,
-                                      &modifier, &mtime);
-    if (rc < 0) {
+                                      &modifier, &mtime); // 获取修改者和修改时间
+    if (rc < 0) { // 否则获取提交信息
         commit = seaf_commit_manager_get_commit (seaf->commit_mgr,
                                                  opt->remote_repo_id,
                                                  version,
@@ -44,7 +44,7 @@ merge_conflict_filename (const char *store_id, int version,
         seaf_commit_unref (commit);
     }
 
-    conflict_name = gen_conflict_path (filename, modifier, mtime);
+    conflict_name = gen_conflict_path (filename, modifier, mtime); // 生成冲突路径
 
 out:
     g_free (path);
@@ -52,7 +52,7 @@ out:
     return conflict_name;
 }
 
-static char *
+static char * // 生成合并冲突目录路径
 merge_conflict_dirname (const char *store_id, int version,
                         MergeOptions *opt,
                         const char *basedir,
@@ -79,9 +79,9 @@ out:
     return conflict_name;
 }
 
-static int
+static int // 合并目录项
 merge_entries (const char *store_id, int version,
-               int n, SeafDirent *dents[],
+               int n, SeafDirent *dents[], // n路
                const char *basedir,
                GList **dents_out,
                MergeOptions *opt)
@@ -92,42 +92,42 @@ merge_entries (const char *store_id, int version,
     memset (files, 0, sizeof(files[0])*n);
     for (i = 0; i < n; ++i) {
         if (dents[i] && S_ISREG(dents[i]->mode))
-            files[i] = dents[i];
+            files[i] = dents[i]; // 文件
     }
 
     /* If we're running 2-way merge, or the caller requires not to
      * actually merge contents, just call the callback function.
      */
-    if (n == 2 || !opt->do_merge)
-        return opt->callback (basedir, files, opt);
+    if (n == 2 || !opt->do_merge) // 两路合并或不进行实际合并，只调用回调函数
+        return opt->callback (basedir, files, opt); // 目标分支合并到当前分支
 
     /* Otherwise, we're doing a real 3-way merge of the trees.
      * It means merge files and handle any conflicts.
-     */
+     */ // 进行三路合并
 
     SeafDirent *base, *head, *remote;
     char *conflict_name;
 
-    base = files[0];
-    head = files[1];
-    remote = files[2];
+    base = files[0]; // 基（基准分支，共同的祖先）
+    head = files[1]; // 头（当前分支）
+    remote = files[2]; // 远程（目标分支）
 
-    if (head && remote) {
-        if (strcmp (head->id, remote->id) == 0) {
+    if (head && remote) { // 头且远程
+        if (strcmp (head->id, remote->id) == 0) { // 文件匹配
             seaf_debug ("%s%s: files match\n", basedir, head->name);
 
             *dents_out = g_list_prepend (*dents_out, seaf_dirent_dup(head));
-        } else if (base && strcmp (base->id, head->id) == 0) {
+        } else if (base && strcmp (base->id, head->id) == 0) { // 远程被修改
             seaf_debug ("%s%s: unchanged in head, changed in remote\n",
                         basedir, head->name);
 
             *dents_out = g_list_prepend (*dents_out, seaf_dirent_dup(remote));
-        } else if (base && strcmp (base->id, remote->id) == 0) {
+        } else if (base && strcmp (base->id, remote->id) == 0) { // 头被修改
             seaf_debug ("%s%s: unchanged in remote, changed in head\n",
                         basedir, head->name);
 
             *dents_out = g_list_prepend (*dents_out, seaf_dirent_dup(head));
-        } else {
+        } else { // 发生冲突
             /* File content conflict. */
 
             seaf_debug ("%s%s: files conflict\n", basedir, head->name);
@@ -135,7 +135,7 @@ merge_entries (const char *store_id, int version,
             conflict_name = merge_conflict_filename(store_id, version,
                                                     opt,
                                                     basedir,
-                                                    head->name);
+                                                    head->name); // 生成冲突路径
             if (!conflict_name)
                 return -1;
 
@@ -143,7 +143,7 @@ merge_entries (const char *store_id, int version,
              * will see the conflict name, not the original name.
              */
             g_free (remote->name);
-            remote->name = conflict_name;
+            remote->name = conflict_name; // 新的远程文件路径
             remote->name_len = strlen (remote->name);
 
             *dents_out = g_list_prepend (*dents_out, seaf_dirent_dup(head));
@@ -151,7 +151,7 @@ merge_entries (const char *store_id, int version,
 
             opt->conflict = TRUE;
         }
-    } else if (base && !head && remote) {
+    } else if (base && !head && remote) { // 基与远程
         if (strcmp (base->id, remote->id) != 0) {
             if (dents[1] != NULL) {
                 /* D/F conflict:
@@ -192,7 +192,7 @@ merge_entries (const char *store_id, int version,
             seaf_debug ("%s%s: file deleted in head, unchanged in remote\n",
                         basedir, remote->name);
         }
-    } else if (base && head && !remote) {
+    } else if (base && head && !remote) { // 基与头
         if (strcmp (base->id, head->id) != 0) {
             if (dents[2] != NULL) {
                 /* D/F conflict:
@@ -234,7 +234,7 @@ merge_entries (const char *store_id, int version,
             seaf_debug ("%s%s: file deleted in remote, unchanged in head\n",
                         basedir, head->name);
         }
-    } else if (!base && !head && remote) {
+    } else if (!base && !head && remote) { // 仅远程
         if (!dents[1]) {
             /* Added in remote. */
             seaf_debug ("%s%s: added in remote\n", basedir, remote->name);
@@ -274,7 +274,7 @@ merge_entries (const char *store_id, int version,
 
             opt->conflict = TRUE;
         }
-    } else if (!base && head && !remote) {
+    } else if (!base && head && !remote) { // 仅头
         if (!dents[2]) {
             /* Added in remote. */
             seaf_debug ("%s%s: added in head\n", basedir, head->name);
@@ -313,7 +313,7 @@ merge_entries (const char *store_id, int version,
 
             opt->conflict = TRUE;
         }
-    } else if (base && !head && !remote) {
+    } else if (base && !head && !remote) { // 仅基
         /* Don't need to add anything to dents_out. */
         seaf_debug ("%s%s: deleted in head and remote\n", basedir, base->name);
     }
@@ -321,7 +321,7 @@ merge_entries (const char *store_id, int version,
     return 0;
 }
 
-static int
+static int // 合并目录
 merge_directories (const char *store_id, int version,
                    int n, SeafDirent *dents[],
                    const char *basedir,
@@ -450,7 +450,7 @@ free_sub_dirs:
     return ret;
 }
 
-static gint
+static gint // 对比目录项
 compare_dirents (gconstpointer a, gconstpointer b)
 {
     const SeafDirent *denta = a, *dentb = b;
@@ -458,7 +458,7 @@ compare_dirents (gconstpointer a, gconstpointer b)
     return strcmp (dentb->name, denta->name);
 }
 
-static int
+static int // 递归合并
 merge_trees_recursive (const char *store_id, int version,
                        int n, SeafDir *trees[],
                        const char *basedir,
@@ -487,7 +487,7 @@ merge_trees_recursive (const char *store_id, int version,
         done = TRUE;
 
         /* Find the "largest" name, assuming dirents are sorted. */
-        for (i = 0; i < n; ++i) {
+        for (i = 0; i < n; ++i) { // 以文件名排序，进行合并
             if (ptrs[i] != NULL) {
                 done = FALSE;
                 dent = ptrs[i]->data;
@@ -521,7 +521,7 @@ merge_trees_recursive (const char *store_id, int version,
         }
 
         /* Merge entries of this level. */
-        if (n_files > 0) {
+        if (n_files > 0) { // 合并目录项
             ret = merge_entries (store_id, version,
                                  n, dents, basedir, &merged_dents, opt);
             if (ret < 0)
@@ -529,7 +529,7 @@ merge_trees_recursive (const char *store_id, int version,
         }
 
         /* Recurse into sub level. */
-        if (n_dirs > 0) {
+        if (n_dirs > 0) { // 合并目录
             ret = merge_directories (store_id, version,
                                      n, dents, basedir, &merged_dents, opt);
             if (ret < 0)
@@ -537,7 +537,7 @@ merge_trees_recursive (const char *store_id, int version,
         }
     }
 
-    if (n == 3 && opt->do_merge) {
+    if (n == 3 && opt->do_merge) { // 三路合并
         merged_dents = g_list_sort (merged_dents, compare_dirents);
         merged_tree = seaf_dir_new (NULL, merged_dents,
                                     dir_version_from_repo_version(version));
@@ -559,9 +559,9 @@ merge_trees_recursive (const char *store_id, int version,
     return ret;
 }
 
-int
-seaf_merge_trees (const char *store_id, int version,
-                  int n, const char *roots[], MergeOptions *opt)
+int // 开始合并
+seaf_merge_trees(const char *store_id, int version,
+                 int n, const char *roots[], MergeOptions *opt)
 {
     SeafDir **trees, *root;
     int i, ret;

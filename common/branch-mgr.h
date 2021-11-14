@@ -21,7 +21,7 @@ SeafBranch *seaf_branch_new (const char *name, // 分支名
 void seaf_branch_free (SeafBranch *branch); // 删除分支
 void seaf_branch_set_commit (SeafBranch *branch, const char *commit_id); // 设置提交id
 
-void seaf_branch_ref (SeafBranch *branch); // 增加一个引用
+void seaf_branch_ref (SeafBranch *branch); // 增加一个引用（用于GC）
 void seaf_branch_unref (SeafBranch *branch); // 解除一个引用
 
 
