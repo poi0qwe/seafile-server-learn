@@ -114,7 +114,7 @@ static int check_db_table (CcnetGroupManager *manager, CcnetDB *db)
     const char *table_name = manager->priv->table_name;
 
     int db_type = seaf_db_type (db);
-    if (db_type == SEAF_DB_TYPE_MYSQL) {
+    if (db_type == SEAF_DB_TYPE_MYSQL) { // 组
         g_string_printf (group_sql,
             "CREATE TABLE IF NOT EXISTS `%s` (`group_id` BIGINT "
             " PRIMARY KEY AUTO_INCREMENT, `group_name` VARCHAR(255),"

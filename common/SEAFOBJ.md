@@ -386,7 +386,7 @@ struct _SeafCommit { 					// 提交对象
 # 分支
 我们知道一次提交是基于另一次提交之上、或者是两个提交的合并，那么如何指代另一个提交或者另两个提交？显然，如果细粒度地使用提交名，效率太低，可读性太差。
 
-分支广义上是指得到某个提交的过程，那么得到不同的提交就对应了不同的分支。以小版本发布的开源软件为例，此时需要两个分支，一个是成品，另一个是开发过程中的半成品；前者指代得到某个版本的成品的过程，后者指代开发的过程；发布新版本时，我们不需要关心两个过程中各个提交间的具体联系，只需要将开发分支向成品分支合并，得到新的成品分支。
+分支广义上是指得到某个提交的过程，那么得到不同的提交就对应了不同的分支。以小版本发布的开源软件为例，此时需要两个分支，一个是成品，另一个是开发过程中的半成品；前者指代得到某个版本的成品的过程，后者指代开发的过程；发布新版本时，我们不需要关心两个过程中各个提交间的具体联系，只需要将开发分支向成品分支合并，然后提交得到新的成品分支。
 
 如果提交是对版本的细粒度管理，那么分支则是对版本的粗粒度管理。狭义上，用一个分支去指代一个提交，并且随着新提交的加入，分支向新提交移动。
 
@@ -418,3 +418,275 @@ struct _SeafBranch {     // 分支对象
 
 ## Seafile分支操作
 分支可以很好地用关系去描述，因此被持久化至数据库。主要操作就是增删查改，略。
+
+# 提交差异
+为了方便用户检视，以及为合并做准备，需要设计一种算法，来统计两个提交间（分支）的差异。在思考算法的具体流程前，需要先总结差异的类型。
+
+## 差异类型
+若有两个提交Commit, Parent，假设我们考虑Commit相对于Parent的差异。即，Commit是我的提交，Parent是别人的提交，现在需要考虑我的提交相对于别人的提交的不同。
+### 文件差异
+|差异|说明|符号|
+|:-:|:-|:-:|
+|添加|Commit相对于Parent添加了该文件。|A|
+|删除|Commit相对于Parent删除了该文件。|D|
+|修改|Commit相对于Parent添加了该文件。|M|
+|重命名|Commit相对于Parent重命名了该文件，且内容尚未被修改。|R|
+### 目录差异
+|差异|说明|符号|
+|:-:|:-|:-:|
+|添加|Commit相对于Parent添加了该目录。|B|
+|删除|Commit相对于Parent删除了该目录。|C|
+|重命名|Commit相对于Parent重命名了该目录，且链接尚未被修改。|E|
+### 未合并差异
+三路差异中的特殊情况。
+
+|差异|说明|
+|:-:|:-|
+|STATUS_UNMERGED_NONE|未合并|
+|STATUS_UNMERGED_BOTH_CHANGED|两者都被修改：相同文件被修改为不同结果|
+|STATUS_UNMERGED_BOTH_ADDED|两者都被添加：两个合并都添加了相同的文件|
+|STATUS_UNMERGED_I_REMOVED|一个移除了文件，一个修改了文件|
+|STATUS_UNMERGED_OTHERS_REMOVED|一个修改了文件，一个移除了文件|
+|STATUS_UNMERGED_DFC_I_ADDED_FILE|一个将目录替换为了文件，另一个修改了目录中的文件|
+|STATUS_UNMERGED_DFC_OTHERS_ADDED_FILE|一个修改了目录中的文件，另一个将目录替换为了文件|
+
+（实际使用中的目的未知，因为尚未找到相关实现代码）
+
+## 算法
+### 流程
+- 同构递归
+
+	目的是递归遍历各路文件树位置同构的部分。伪代码如下：
+	```c++
+	文件树同构递归（Tree[s][n]：n路文件树上位置同构的目录）：
+		Dirents[n]：n路文件树上位置同构的目录项
+		While (1)：
+			获取同构目录项至Dirents
+			如果n路的Dirents完全相同：
+		    	Return
+			文件差异处理（Dirents）
+			目录差异处理（Dirents）
+
+	文件差异处理（Dirents[n]：n路文件树上位置同构的文件）：
+		获取对应的Files，然后调用差异回调函数
+	
+	目录差异处理（Dirents[n]：n路文件树上位置同构的文件）：
+		获取对应的Dir，然后调用差异回调函数
+		文件树同构递归（Dirs）
+	```
+- 同构目录项
+
+	同构递归之所以能做到多路位置同构，很重要的一点是需要获取同构目录项，而这一点需要某些基准。回到位置同构的本质，它实际上就是需要节点到根的路径完全相同。考虑搜索二/多叉树，因为存在权值，所以我们很容易找到多棵树中节点到根权值完全相同的路径。那么文件树中可以用什么作为权值呢？文件名/目录名。
+	
+	我们认为相同名称的目录项，在多路位置同构目录中也位置同构。基于这个假设，我们很快能设计出高效复杂度的遍历同构项的方法。考虑将目录项按名称排序（这也是获取Seafdir时的默认操作），然后我们就可以用类似归并排序中的方法，基于多指针来得到多路相同的目录项。
+
+当然，仅仅是知道同构仍然是不够的，因为我们的目的是需要知道同构的差异，所以我们需要进一步使用差异算法来获得差异。
+### 二路差异与三路差异
+对于两种产生提交的方式，有两种差异算法：
+
+1. 二路差异：应用于普通提交。判断Commit相对于Parent的差异。能直接确定非差异内容，而对于修改内容，则需要判断内容。
+
+2. 三路差异：应用于合并后提交。判断Commit相对于ParentA和ParentB的差异。可以区分出Commit相对于两者的增加、删除。但是修改仍然要结合内容来判断。
+
+![](https://img-blog.csdnimg.cn/836b54b0d1d14ee4b84e91d7bf3669f1.png?x-oss-process=image/watermark,type_ZHJvaWRzYW5zZmFsbGJhY2s,shadow_50,text_Q1NETiBAY3lrMDYyMA==,size_20,color_FFFFFF,t_70,g_se,x_16)
+无论是二路差异还是三路差异，都无法判断用户是否是重命名了文件或目录，因为在基于名称的位置同构中，重命名等价于删除后增加。后处理中将处理这种情况。
+
+### 后处理
+- 重命名的近似判断
+
+    已知，基于名称的同构中，如果一个文件被重命名了，那么它可能会被判定为既被删除又被增加。那么如何还原真实的状态？
+
+    答案是只需要找到相同内容，如果相同内容下存在“删除-增加”对，则认为该目录或文件被重命名了。
+
+	注意这只是一种近似判断，有可能用户真的是删除后又增加，但由于我们不监控用户的行为，所以统一认为是重命名。
+
+- 冗余空目录
+	
+	另一个会出现bug的点在空目录。空目录是个特殊存在，所有空目录都指向同一个空目录对象，因为它们的内容相同，所以SHA1即对象名都相同。因此存在两种情况会对一个空目录作出误判：
+
+	1. 向空目录添加文件后，会判定该空目录被删除；
+	2. 将某目录清空后，会判定空目录被增加。
+
+    那么如何处理这两种情况？其实很简单，遍历所有状态为增加或删除的目录，然后特判一下，再将差异类型修正即可。
+
+## 实现
+- ### 差异对象
+	
+	```c++
+	typedef struct DiffEntry { 	// 差异对象
+	    char type; 				// 差异类型
+	    char status; 			// 差异状态
+	    int unmerge_state; 		// 未合并状态
+	    unsigned char sha1[20]; // 用于解决重命名问题
+	    char *name; 			// 名称
+	    char *new_name;         // 新名称，仅被用于重命名情形
+	    gint64 size; 			// 大小
+	    gint64 origin_size;     // 原始大小，仅被用于修改情形
+	} DiffEntry;
+	```
+- ### 差异对比选项
+	```c++
+	typedef struct DiffOptions { // 比对选项
+	    char store_id[37]; 		// 存储id
+	    int version; 			// seafile版本
+	    // 两个回调
+	    DiffFileCB file_cb; 	// 文件差异处理回调
+	    DiffDirCB dir_cb;		// 目录差异处理回调
+	    void *data; 			// 用户参数
+	} DiffOptions;
+	```
+	在使用中向差异对比操作传入该结构体，需要设置目录和文件回调函数。回调即差异算法。
+
+- ### 差异对比算法
+	
+	- 同构位置递归
+	```c++
+	static int // 文件树同构递归
+	diff_trees_recursive (int n, SeafDir *trees[],
+	                      const char *basedir, DiffOptions *opt);
+	int // 文件树差异处理，封装
+	diff_trees (int n, const char *roots[], DiffOptions *opt)
+	static int // 目录差异处理
+	diff_directories (int n, SeafDirent *dents[], const char *basedir, DiffOptions *opt)
+	static int // 文件差异处理
+	diff_files (int n, SeafDirent *dents[], const char *basedir, DiffOptions *opt)
+	```
+	- 差异算法
+	```c++
+	static int // 二路文件差异处理
+	twoway_diff_files (int n, const char *basedir, SeafDirent *files[], void *vdata)
+	static int // 二路目录差异处理
+	twoway_diff_dirs (int n, const char *basedir, SeafDirent *dirs[], void *vdata,
+	                  gboolean *recurse)
+    static int // 三路文件差异处理
+	threeway_diff_files (int n, const char *basedir, SeafDirent *files[], void *vdata)
+	static int // 三路目录差异处理（默认无操作）
+	threeway_diff_dirs (int n, const char *basedir, SeafDirent *dirs[], void *vdata,
+	                    gboolean *recurse)
+	```
+	
+	其中有一个小环节值得一提，就是如何判断内容是否相同。这时再次体现了SHA1摘要命名的好处：我们只需要对比两个文件系统对象的id，就能直接判断它们的内容是否相同。
+	- 后处理
+	
+	```c++
+	void // 解决重命名问题
+	diff_resolve_renames (GList **diff_entries)
+	void // 解决冗余空目录问题
+	diff_resolve_empty_dirs (GList **diff_entries)
+	```
+- ### 封装
+	- 普通提交
+	```c++
+	int // 比对两个提交的差异
+	diff_commits (SeafCommit *commit1, SeafCommit *commit2, GList **results, // 结果记录在results列表
+	              gboolean fold_dir_diff);
+	int // 比对两个提交的差异；给定根目录
+	diff_commit_roots (const char *store_id, int version,
+	                   const char *root1, const char *root2, GList **results,
+	                   gboolean fold_dir_diff);
+	```
+	- 合并后提交
+
+	```c++
+	int // 比对合并前后的差异（与两个父提交对比）
+	diff_merge (SeafCommit *merge, GList **results, gboolean fold_dir_diff);
+	int // 比对合并前后的差异；给定根目录
+	diff_merge_roots (const char *store_id, int version,
+	                  const char *merged_root, const char *p1_root, const char *p2_root,
+	                  GList **results, gboolean fold_dir_diff);
+	```
+# 分支合并
+## 合并、冲突与解决
+合并是一种重要的手段，能将多个提交(分支)合为一体。合并的对象时两个提交，但一般被认为是分支的合并，因为需要用分支作为提交的指针。分支合并在图中的性质就是入度等于二，即一个提交的生成由两个父提交产生，并且可以携带增量内容。
+
+合并两个提交(分支)，最重要的问题就是解决冲突。冲突的判断实际上与差异的判断类似，都是借助位置同构进行的，在此不做赘述。这里的关键问题在于如何判定冲突和解决冲突。冲突对于用户来讲敏感，用户需要通过比较选择哪一个的内容将其放到新版本中。同时冲突又有可能是用户定义的，所有非相同内容都有可能是冲突。
+
+在此有两种解决思路：第一种是二路合并，第二种是三路合并。
+
+二路合并很简单，仅相同内容被保留，删除增加修改全部留给用户选择。因为对二路的非相同内容完全无法判断是否应该保留还是舍弃。这样做实现很容易，但对用户来说很麻烦，不过非常保险，因为冲突选择权全部交给用户，完全可以由用户定义冲突。
+
+三路合并则是具有一定自主性，引入了Base即两个分支的公共祖先，然后借助Base来判断保留内容还是交给用户选择。这样做提高了效率，但并不一定保险，因为算法定义的冲突有可能不符合用户定义。
+## 三路合并
+合并的参与者包括三个分支，Base、Head、Remote。我们的目的是将Head和Remote合并，并且Base是它们的共同祖先。
+
+引入了Base后，所有差异内容的判断都有了判断准则。算法认为两分支相对于祖先不交叉的更改(包括增删改)都是被保留的，而交叉的更改则是冲突内容。这样的冲突定义实际上已经符合大多数情况，而且将冲突的可能范畴进一步缩小，可以说是在效率与用户需求之间找到了平衡。
+
+我们用表格来表示合并中三个分支可能出现的情况。假设各个分支中位置同构部分的内容以大写字母表示，则可以得到如下合并结果：
+
+|Base|Head|Remote|结果|说明|
+|:-:|:-:|:-:|:-:|:-:|
+|A	|A	|A	|A|相同内容|
+|A|A|B|B|如果只有一方修改了，那么选择修改的|
+|A|B|A|B|同上|
+|A|B|B|B|如果双方拥有相同的变更，则选择修改过的|
+|A|B|C|conflict|如果双方都修改了且不一样，则报告冲突，需要用户解决|
+
+<small>转自：https://blog.csdn.net/longintchar/article/details/83049840</small>
+
+由上述表格，我们能够直接给出各个同构位置合并是如何处理的。所以三路合并算法也自然显现：套用之前的同构递归，然后实现该表格中的判断即可。
+ 
+## 实现
+函数递归和调用流程如图：
+![](https://img-blog.csdnimg.cn/598da294f483454d8b0d302737185bf1.png)
+内容就是实现了三路合并算法（二路合并并未实装，将只调用回调函数）。
+
+最后需要阐明的是合并结果的存储。对于合并后的结果，有两种选项：如果do_merge=true，则直接写入硬盘，然后返回一个根目录id到merged_tree_root；反之，只调用回调函数。
+
+在此不再粘贴详细源码，详见：[merge-new.c](https://github.com/poi0qwe/seafile-server-learn/blob/main/common/merge-new.c)。
+
+# 集群
+
+seafile支持集群，实现了一个集群管理系统。这个系统的核心内容独立为另一个项目：[ccnet-server](https://github.com/haiwen/ccnet-server)，用以协调网络应用的运行。这篇文章主要介绍集群管理。集群中当然还有其他功能，例如对等体识别、连接管理、服务调用、消息传递等，而这些内容属于协议，在[seafile : librpc 分析](https://blog.csdn.net/Minori_wen/article/details/121056932?spm=1001.2014.3001.5501)中可以找到。
+
+集群中分为三个层次结构：用户、群组、组织。集群管理就是对这三个层次的结构进行维护。
+![](https://img-blog.csdnimg.cn/f67a0283b5be4f4685979a267e094dc5.png)
+三个层级依次递进，所管理的用户数量的数量级逐级递增。
+
+这三个层次的相关信息可以很方便地用关系模型描述，并且需要统一在同一个数据库下进行维护，所以这个系统的数据持久化主要基于关系型数据库。
+
+## 用户
+集群中的一个个体，即一个用户。用户之间存在沟通和联系，但这不是集群管理的关键。集群管理主要做的是对用户信息进行维护，至于怎样将信息在集群内部进行协调，集群管理一概不关心。
+
+用户管理的ER图如下：
+![](https://img-blog.csdnimg.cn/2a44d94e72c644039bfe48a32be4b8fc.png?x-oss-process=image/watermark,type_ZHJvaWRzYW5zZmFsbGJhY2s,shadow_50,text_Q1NETiBAY3lrMDYyMA==,size_19,color_FFFFFF,t_70,g_se,x_16)
+用户的信息包括基本的id、邮箱、密码等。另外有两个标签：is_staff代表是否是管理员，is_active代表目前是否活跃。
+### 绑定和对等体
+集群中有一个特殊的关系，叫做对等体。对等体之间通过协议来通信或协调其他工作，例如seafile中以自身实现的rpc协议来进行rpc操作。
+
+那么如何判断几个用户之间是否是对等体？为用户间添加了一个关系，称作绑定。绑定关系明确了一个用户有哪些对等体，以方便用户向对等体进行通信。
+
+### 角色
+用户可能扮演多个角色，因此创建了另外一个实体UserRole来表示用户当前的角色。这些角色并不是预定义的，可由开发者通过集群的功能自定。
+
+### 用户管理操作
+由于用户管理重点是对用户信息进行管理，所以内容就是增删查改。详细信息见[user-mgr.h](https://github.com/poi0qwe/seafile-server-learn/blob/main/common/user-mgr.h)。
+
+## 群组
+将多个用户进行集中式管理，每个用户属于一个群组。ER图如下：
+![](https://img-blog.csdnimg.cn/81beb3abc80b49efbc4cc871eec41b0e.png?x-oss-process=image/watermark,type_ZHJvaWRzYW5zZmFsbGJhY2s,shadow_50,text_Q1NETiBAY3lrMDYyMA==,size_18,color_FFFFFF,t_70,g_se,x_16)
+### 群组结构
+群组的结构是一棵树（对应了集合的包含关系），根被称为顶级群组，每个群组都有一个指向父群组的指针。更方便的，通过一个字符串路径能够唯一确定一个群组，这个信息以实体GroupStructure表示。
+
+### 群组管理操作
+群组管理中除了对群组自身进行操作，还要设计到群组中用户的操作，内容依旧是增删查改。详见[group-mgr.h](https://github.com/poi0qwe/seafile-server-learn/blob/main/common/group-mgr.h)。
+## 组织
+将多个群组进行集中式管理，每个群组属于一个组织。ER图如下：
+![](https://img-blog.csdnimg.cn/80bf39ddde9d4967a096ea292e9acd3e.png)
+组织就是一个集群。与组织相关的关系和实体中描述了组织中包含的用户、群组的信息。
+### 组织管理操作
+内容与群组类似，但并不关系群组和用户间的具体关系，重点关注组织和用户、组织和群组间的关系。具体内容详见[org-mgr.h](https://github.com/poi0qwe/seafile-server-learn/blob/main/common/org-mgr.h)
+
+## 集群架构
+通过源码，我们能总结出上述内容所实现的集群架构。一个最基本的线索就是包含关系：群组是用户的集合、组织是群组的集合。这个关系也是我们从ER关系中作出的直观推断。实际上这里实现的集群的结构也正是如此：分层架构。
+![](https://img-blog.csdnimg.cn/cc7389b605f7477db4dd2a7f2137f520.png)
+现在我们已经知道了分层这样一个关系，现在思考为什么要进行分层。
+
+首先，集群内还存在一个关系，那就是管理。管理显然是不可或缺的，因为有时候在可进行可靠交互时，必须引入第三方。但集群的管理同样也是个问题，它与管理的规模挂钩。而集群管理的分层架构，恰好体现了分而治之的思想。试想一下，如果全部交由一个中心用户来管理所有其他用户，那么中心用户的负载将会过大。于是分层架构中就诞生了群组的概念，将各个群组分摊给一些管理员，群组管理员管理群组内的用户。那么谁来管理管理员，于是需要一个级别更高管理员，来管理集群内其他所有管理员和所有用户。如果这些管理员负载也太大了，那么就进一步分为更小的群组，这也就是群组间呈现的树状关系。
+
+为了方便管理，并且考虑到集群的动态性，我们需要将集群实体化，并在持久化部件中进行维护。这个时候又有问题了，谁来实体化？于是引入创建者的概念。一个群组由某个用户进行创建，并将其持久化，这个用户被称为创建者。
+
+现在我们重新考虑集群内部的各种关系，包括管理与创建关系，从用户开始向上递推，于是我们得到了更加清晰的描述：
+![在这里插入图片描述](https://img-blog.csdnimg.cn/8541509c7ad3465fbc9cfd6dcfa2655a.png?x-oss-process=image/watermark,type_ZHJvaWRzYW5zZmFsbGJhY2s,shadow_50,text_Q1NETiBAY3lrMDYyMA==,size_20,color_FFFFFF,t_70,g_se,x_16)
+上图也就是对集群管理的总结。
+
+至于seafile集群去中心化的特性、对等体、集群内个体间的详细关系与相互作用等，那就是协议中的内容了，这里不做阐述。如果说想了解seafile中集群的通讯协议，详见librpc。

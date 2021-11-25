@@ -71,10 +71,10 @@ diff_commit_roots (const char *store_id, int version,
                    const char *root1, const char *root2, GList **results,
                    gboolean fold_dir_diff);
 
-int // 比对提交的差异（与两个父提交）
+int // 比对合并前后的差异（与两个父提交对比）
 diff_merge (SeafCommit *merge, GList **results, gboolean fold_dir_diff);
 
-int // 比对提交的差异；给定根目录
+int // 比对合并前后的差异；给定根目录
 diff_merge_roots (const char *store_id, int version,
                   const char *merged_root, const char *p1_root, const char *p2_root,
                   GList **results, gboolean fold_dir_diff);

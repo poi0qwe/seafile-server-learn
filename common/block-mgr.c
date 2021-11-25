@@ -59,7 +59,7 @@ seaf_block_manager_init (SeafBlockManager *mgr)
 
 BlockHandle * // 打开块
 seaf_block_manager_open_block (SeafBlockManager *mgr,
-                               const char *store_id, // 仓库id
+                               const char *store_id, // 仓库存储id
                                int version, // 版本
                                const char *block_id, // 块id
                                int rw_type) // 读写类型

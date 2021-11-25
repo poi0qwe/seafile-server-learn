@@ -550,7 +550,7 @@ out:
 
 /* -------- DB Operations -------- */
 
-static int check_db_table (SeafDB *db)
+static int check_db_table (SeafDB *db) // (邮箱)用户、绑定关系、角色关系、LDAP用户、LDAP配置
 {
     char *sql;
 

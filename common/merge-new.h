@@ -30,7 +30,7 @@ typedef struct MergeOptions { // 合并选项
     gboolean            conflict; // 是否冲突
 } MergeOptions;
 
-int // 开始合并（n路；二路：remote->head；三路：(remote->head)on(base)）
+int // 开始合并（n路；二路：remote>-<head；三路：(remote>-<head)on(base)）
 seaf_merge_trees (const char *store_id, int version,
                   int n, const char *roots[], MergeOptions *opt); // 根据多个根目录id
 

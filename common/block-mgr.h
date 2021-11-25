@@ -110,7 +110,7 @@ seaf_block_manager_remove_block (SeafBlockManager *mgr,
                                  int version,
                                  const char *block_id);
 
-BlockMetadata * // 通过仓库id、版本、块id来获取块的状态（元数据）
+BlockMetadata * // 通过仓库存储id、版本、块id来获取块的状态（元数据）
 seaf_block_manager_stat_block (SeafBlockManager *mgr,
                                const char *store_id,
                                int version,
@@ -120,14 +120,14 @@ BlockMetadata * // 通过句柄获取块的状态
 seaf_block_manager_stat_block_by_handle (SeafBlockManager *mgr,
                                          BlockHandle *handle);
 
-int // 给定仓库id和版本，遍历其中的每个块，对其执行块操作函数；若块操作函数返回零，直接结束循环
+int // 给定仓库存储id和版本，遍历其中的每个块，对其执行块操作函数；若块操作函数返回零，直接结束循环
 seaf_block_manager_foreach_block (SeafBlockManager *mgr,
                                   const char *store_id,
                                   int version,
                                   SeafBlockFunc process, // 块操作函数
                                   void *user_data); // 用户参数，传递给块操作函数
 
-int // 复制块，从某个仓库的某个版本到另一个仓库的另一个版本
+int // 复制块，从某个仓库存储的某个版本到另一个仓库存储的另一个版本
 seaf_block_manager_copy_block (SeafBlockManager *mgr,
                                const char *src_store_id,
                                int src_version,
@@ -136,11 +136,11 @@ seaf_block_manager_copy_block (SeafBlockManager *mgr,
                                const char *block_id);
 
 /* Remove all blocks for a repo. Only valid for version 1 repo. */
-int // 移除仓库中的所有块，仅对版本为1的仓库有效；即清空仓库
+int // 移除仓库存储中的所有块，仅对版本为1的仓库存储有效；即清空仓库存储
 seaf_block_manager_remove_store (SeafBlockManager *mgr,
                                  const char *store_id);
 
-guint64 // 获取某版本的仓库中块的数量
+guint64 // 获取某版本的仓库存储中块的数量
 seaf_block_manager_get_block_number (SeafBlockManager *mgr,
                                      const char *store_id,
                                      int version);

@@ -20,7 +20,7 @@
 
 
 struct _BHandle { // 句柄（block.h中定义其别名为BlockHandle，也就是块的句柄）
-    char    *store_id; // 仓库id
+    char    *store_id; // 存储id
     int     version; // 版本
     char    block_id[41]; // 块id（HEX串）
     int     fd; // 文件标识符

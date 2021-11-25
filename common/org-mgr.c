@@ -1,3 +1,4 @@
+/* 集群管理 */
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
 #include "common.h"
@@ -106,7 +107,7 @@ static int check_db_table (CcnetDB *db)
     char *sql;
 
     int db_type = seaf_db_type (db);
-    if (db_type == SEAF_DB_TYPE_MYSQL) {
+    if (db_type == SEAF_DB_TYPE_MYSQL) { // 组织、用户、群组
         sql = "CREATE TABLE IF NOT EXISTS Organization (org_id BIGINT"
             " PRIMARY KEY AUTO_INCREMENT, org_name VARCHAR(255),"
             " url_prefix VARCHAR(255), creator VARCHAR(255), ctime BIGINT,"
