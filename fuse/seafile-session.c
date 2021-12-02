@@ -19,7 +19,8 @@ SeafileSession *
 seafile_session_new(const char *central_config_dir,
                     const char *seafile_dir,
                     const char *ccnet_dir)
-{
+{ // 创建新的会话，通过配置目录、seafile目录、ccnet目录
+    // 进行各种初始化操作，创建各个部分的管理器
     char *abs_central_config_dir = NULL;
     char *abs_seafile_dir;
     char *abs_ccnet_dir = NULL;
@@ -140,7 +141,7 @@ onerror:
     return NULL;    
 }
 
-static int
+static int // 设置排除用户
 read_excluded_users (SeafileSession *session)
 {
     char *users;
@@ -168,7 +169,7 @@ read_excluded_users (SeafileSession *session)
     return 0;
 }
 
-int
+int // 初始化
 seafile_session_init (SeafileSession *session)
 {
     if (seaf_commit_manager_init (session->commit_mgr) < 0)

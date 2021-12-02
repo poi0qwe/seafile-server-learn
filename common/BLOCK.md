@@ -26,7 +26,7 @@ CDC分块后，文件被存储为块。
 
     BMetadata定义了块的元数据，包括块id和块长：
 
-    ```c++
+    ```cpp
     struct _BMetadata {
         char        id[41]; // 块的id
         uint32_t    size; // 块的大小
@@ -43,7 +43,7 @@ CDC分块后，文件被存储为块。
 
     - store_id
 
-        存储id。（单端存储中，存储id等于仓库id；否则是特定的存储id）
+        存储id。（一般存储id等于仓库id；当仓库为虚拟仓库时，使用原始仓库作为存储id）
 
     - version
 
@@ -98,7 +98,7 @@ CDC分块后，文件被存储为块。
 
 - ### 句柄结构
 
-    ```c++
+    ```cpp
     struct _BHandle { // 句柄
         char    *store_id;      // 存储id
         int     version;        // 版本
@@ -156,7 +156,7 @@ CDC分块后，文件被存储为块。
 
 - ### 状态码
 
-    ```c++
+    ```cpp
     enum {
         STATUS_OK = 0,                // OK
         STATUS_VERSION_MISMATCH,      // 版本不匹配
@@ -209,7 +209,7 @@ CDC分块后，文件被存储为块。
 
     定义了帧转化器FrameParser，作为加密解密的上下文：
 
-    ```c++
+    ```cpp
     typedef struct _FrameParser { // 帧转化器
         int enc_frame_len; // 帧长度
 

@@ -19,7 +19,7 @@
 
 SeafileSession *seaf = NULL;
 
-static char *parse_repo_id (const char *repo_id_name)
+static char *parse_repo_id (const char *repo_id_name) // 复制一个repo_id
 {
     if (strlen(repo_id_name) < 36)
         return NULL;
@@ -35,7 +35,7 @@ static char *parse_repo_id (const char *repo_id_name)
  */
 int parse_fuse_path (const char *path,
                      int *n_parts, char **user, char **repo_id, char **repo_path)
-{
+{ // 根据n_parts(级别)，获取fuse路径下对应的user、repo_id、repo_path
     char **tokens;
     int n;
     int ret = 0;
@@ -81,7 +81,7 @@ int parse_fuse_path (const char *path,
     return ret;
 }
 
-static int seaf_fuse_getattr(const char *path, struct stat *stbuf)
+static int seaf_fuse_getattr(const char *path, struct stat *stbuf) // 获取属性至状态缓冲
 {
     memset(stbuf, 0, sizeof(struct stat));
     return do_getattr(seaf, path, stbuf);
@@ -89,7 +89,7 @@ static int seaf_fuse_getattr(const char *path, struct stat *stbuf)
 
 static int seaf_fuse_readdir(const char *path, void *buf,
                              fuse_fill_dir_t filler, off_t offset,
-                             struct fuse_file_info *info)
+                             struct fuse_file_info *info) // 读目录
 {
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
@@ -97,13 +97,13 @@ static int seaf_fuse_readdir(const char *path, void *buf,
     return do_readdir(seaf, path, buf, filler, offset, info);
 }
 
-static int seaf_fuse_open(const char *path, struct fuse_file_info *info)
+static int seaf_fuse_open(const char *path, struct fuse_file_info *info) // 给出一个fuse路径，尝试打开对应的文件系统对象
 {
     int n_parts;
     char *user, *repo_id, *repo_path;
     SeafRepo *repo = NULL;
-    SeafBranch *branch = NULL;
-    SeafCommit *commit = NULL;
+    SeafBranch *branch = NULL; // HEAD指向的分支
+    SeafCommit *commit = NULL; // 获取分支对应的提交
     guint32 mode = 0;
     int ret = 0;
 
@@ -164,7 +164,7 @@ out:
 }
 
 static int seaf_fuse_read(const char *path, char *buf, size_t size,
-                          off_t offset, struct fuse_file_info *info)
+                          off_t offset, struct fuse_file_info *info) // 给出一个fuse路径，然后读文件内容
 {
     int n_parts;
     char *user, *repo_id, *repo_path;
@@ -239,7 +239,7 @@ out:
     return ret;
 }
 
-struct options {
+struct options { // 选项
     char *central_config_dir;
     char *config_dir;
     char *seafile_dir;
@@ -253,7 +253,7 @@ enum {
     KEY_HELP,
 };
 
-static struct fuse_opt seaf_fuse_opts[] = {
+static struct fuse_opt seaf_fuse_opts[] = { // fuse参数
     SEAF_FUSE_OPT_KEY("-c %s", config_dir, 0),
     SEAF_FUSE_OPT_KEY("--config %s", config_dir, 0),
     SEAF_FUSE_OPT_KEY("-F %s", central_config_dir, 0),
@@ -270,14 +270,14 @@ static struct fuse_opt seaf_fuse_opts[] = {
     FUSE_OPT_END
 };
 
-static struct fuse_operations seaf_fuse_ops = {
+static struct fuse_operations seaf_fuse_ops = { // fuse操作
     .getattr = seaf_fuse_getattr,
     .readdir = seaf_fuse_readdir,
     .open    = seaf_fuse_open,
     .read    = seaf_fuse_read,
 };
 
-int main(int argc, char *argv[])
+int main(int argc, char *argv[]) // fuse独立程序
 {
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     const char *debug_str = NULL;

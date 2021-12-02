@@ -1,3 +1,4 @@
+// seafile会话
 #ifndef SEAFILE_SESSION_H
 #define SEAFILE_SESSION_H
 

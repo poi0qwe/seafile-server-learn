@@ -42,7 +42,7 @@
 
         这是seafile版本0中的方法。使用如下标识，告诉编译器将结构体字节对齐：
 
-        ```c++
+        ```cpp
         __attribute__ ((packed)) update_pack_t;
         ```
 
@@ -187,7 +187,7 @@ Riak是一个分布式NoSQL数据存储系统，使用键值存储。
 
 项目中主要通过`wait_for_unlock_notify`函数进行互斥并发，每次执行SQL前将调用该方法等待sqlite解锁：
 
-```c++
+```cpp
 typedef struct UnlockNotification { // 通知上下文
         int fired; // 是否已经通知
         pthread_cond_t cond; // 条件变量
@@ -330,7 +330,7 @@ seafile中，此部分的相关内容与git大体相同。
 ## Seafile提交
 
 seafile版本管理中的提交对象，拥有以下信息：
-```c++
+```cpp
 struct _SeafCommit { 					// 提交对象
     struct _SeafCommitManager *manager; // 提交管理器
 
@@ -405,7 +405,7 @@ struct _SeafCommit { 					// 提交对象
 	指向分支的指针，代表该分支为当前分支。此后的提交、合并，都向head指针指向的分支进行。
 
 ## Seafile分支
-```c++
+```cpp
 struct _SeafBranch {     // 分支对象
     int   ref; 			 // 引用次数
     char *name; 		 // 分支名
@@ -457,7 +457,7 @@ struct _SeafBranch {     // 分支对象
 - 同构递归
 
 	目的是递归遍历各路文件树位置同构的部分。伪代码如下：
-	```c++
+	```cpp
 	文件树同构递归（Tree[s][n]：n路文件树上位置同构的目录）：
 		Dirents[n]：n路文件树上位置同构的目录项
 		While (1)：
@@ -512,7 +512,7 @@ struct _SeafBranch {     // 分支对象
 ## 实现
 - ### 差异对象
 	
-	```c++
+	```cpp
 	typedef struct DiffEntry { 	// 差异对象
 	    char type; 				// 差异类型
 	    char status; 			// 差异状态
@@ -525,7 +525,7 @@ struct _SeafBranch {     // 分支对象
 	} DiffEntry;
 	```
 - ### 差异对比选项
-	```c++
+	```cpp
 	typedef struct DiffOptions { // 比对选项
 	    char store_id[37]; 		// 存储id
 	    int version; 			// seafile版本
@@ -540,7 +540,7 @@ struct _SeafBranch {     // 分支对象
 - ### 差异对比算法
 	
 	- 同构位置递归
-	```c++
+	```cpp
 	static int // 文件树同构递归
 	diff_trees_recursive (int n, SeafDir *trees[],
 	                      const char *basedir, DiffOptions *opt);
@@ -552,7 +552,7 @@ struct _SeafBranch {     // 分支对象
 	diff_files (int n, SeafDirent *dents[], const char *basedir, DiffOptions *opt)
 	```
 	- 差异算法
-	```c++
+	```cpp
 	static int // 二路文件差异处理
 	twoway_diff_files (int n, const char *basedir, SeafDirent *files[], void *vdata)
 	static int // 二路目录差异处理
@@ -568,7 +568,7 @@ struct _SeafBranch {     // 分支对象
 	其中有一个小环节值得一提，就是如何判断内容是否相同。这时再次体现了SHA1摘要命名的好处：我们只需要对比两个文件系统对象的id，就能直接判断它们的内容是否相同。
 	- 后处理
 	
-	```c++
+	```cpp
 	void // 解决重命名问题
 	diff_resolve_renames (GList **diff_entries)
 	void // 解决冗余空目录问题
@@ -576,7 +576,7 @@ struct _SeafBranch {     // 分支对象
 	```
 - ### 封装
 	- 普通提交
-	```c++
+	```cpp
 	int // 比对两个提交的差异
 	diff_commits (SeafCommit *commit1, SeafCommit *commit2, GList **results, // 结果记录在results列表
 	              gboolean fold_dir_diff);
@@ -587,7 +587,7 @@ struct _SeafBranch {     // 分支对象
 	```
 	- 合并后提交
 
-	```c++
+	```cpp
 	int // 比对合并前后的差异（与两个父提交对比）
 	diff_merge (SeafCommit *merge, GList **results, gboolean fold_dir_diff);
 	int // 比对合并前后的差异；给定根目录

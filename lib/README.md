@@ -22,7 +22,7 @@
 
 1. ### 创建
 
-    ```c++
+    ```cpp
     Bloom *bloom_create (size_t size, int k, int counting);
     ```
 
@@ -46,7 +46,7 @@
 
 2. ### 销毁
 
-    ```c++
+    ```cpp
     int bloom_destroy (Bloom *bloom);
     ```
 
@@ -62,7 +62,7 @@
 
 3. ### 增、删、检测
 
-    ```c++
+    ```cpp
     int bloom_add (Bloom *bloom, const char *s);
     int bloom_remove (Bloom *bloom, const char *s);
     int bloom_test (Bloom *bloom, const char *s);
@@ -95,7 +95,7 @@
 
 1. ### 创建新的任务管理器
 
-    ```c++
+    ```cpp
     CcnetJobManager *ccnet_job_manager_new (int max_threads);
     ```
 
@@ -113,7 +113,7 @@
 
 2. ### 增加新的任务
 
-    ```c++
+    ```cpp
     typedef void* (*JobThreadFunc)(void *data);
     typedef void (*JobDoneCallback)(void *result);
     int
@@ -147,7 +147,7 @@
 
 4. ### 销毁任务管理器
 
-    ```c++
+    ```cpp
     void ccnet_job_manager_free (CcnetJobManager *mgr);
     ```
 
@@ -161,7 +161,7 @@
 
 基于libevent的evtimer，实现了定时器功能。功能等价于：
 
-```c++
+```cpp
 while (1) {
     if (func(user_data)) sleep(interval_milliseconds);
 }
@@ -169,7 +169,7 @@ while (1) {
 
 1. ## 创建新的定时器
 
-    ```c++
+    ```cpp
     typedef int (*TimerCB) (void *data);
     CcnetTimer* ccnet_timer_new (TimerCB           func, 
                              void             *user_data,
@@ -194,7 +194,7 @@ while (1) {
 
 2. ## 销毁定时器
 
-    ```c++
+    ```cpp
     void ccnet_timer_free (CcnetTimer **timer);
     ```
 
@@ -210,7 +210,7 @@ while (1) {
 
 1. ### 打开、关闭
 
-    ```c++
+    ```cpp
     int sqlite_open_db (const char *db_path, sqlite3 **db); // 打开
     int sqlite_close_db (sqlite3 *db); // 关闭
     ```
@@ -225,7 +225,7 @@ while (1) {
 
 2. ### SQL相关
 
-    ```c++
+    ```cpp
     sqlite3_stmt *sqlite_query_prepare (sqlite3 *db, const char *sql); // 预编译sql
     int sqlite_query_exec (sqlite3 *db, const char *sql); // 执行sql
     int sqlite_begin_transaction (sqlite3 *db); // 开始事务
@@ -240,7 +240,7 @@ while (1) {
 
 3. ### 查询相关
 
-    ```c++
+    ```cpp
     typedef gboolean (*SqliteRowFunc) (sqlite3_stmt *stmt, void *data);
     int
     sqlite_foreach_selected_row (sqlite3 *db, const char *sql, 
@@ -255,7 +255,7 @@ while (1) {
 
         用户数据，作为回调函数的参数。
 
-    ```c++
+    ```cpp
     gboolean sqlite_check_for_existence (sqlite3 *db, const char *sql); // 检查sql结果集是否为空
     int sqlite_get_int (sqlite3 *db, const char *sql); // int单值查询
     gint64 sqlite_get_int64 (sqlite3 *db, const char *sql); // in64单值查询
@@ -272,7 +272,7 @@ socket网络编程相关。
 
 1. ### TCP
 
-    ```c++
+    ```cpp
     evutil_socket_t ccnet_net_open_tcp (const struct sockaddr *sa, int nonblock); // 客户端打开tcp连接
     evutil_socket_t ccnet_net_bind_tcp (int port, int nonblock); // 服务端绑定端口
     evutil_socket_t ccnet_net_accept (evutil_socket_t b, 
@@ -289,7 +289,7 @@ socket网络编程相关。
 
 2. ### UDP
 
-    ```c++
+    ```cpp
     evutil_socket_t udp_client (const char *host, const char *serv,
                 struct sockaddr **saptr, socklen_t *lenp); // 客户端打开udp连接('host:serv')
     int mcast_set_loop(evutil_socket_t sockfd, int onoff); // 多播循环开关
@@ -300,7 +300,7 @@ socket网络编程相关。
 
 3. ### 实用函数
 
-    ```c++
+    ```cpp
     int ccnet_net_make_socket_blocking (evutil_socket_t fd); // 使socket称为阻塞式
     int ccnet_netSetTOS ( evutil_socket_t s, int tos ); // 设置TOS
     char *sock_ntop(const struct sockaddr *sa, socklen_t salen); // 从sockaddr中获取ip地址
@@ -316,7 +316,7 @@ socket网络编程相关。
 
 1. ### 管道、读写
 
-    ```c++
+    ```cpp
     #define ccnet_pipe_t int // 定义ccnet管道的id类型
     #define ccnet_pipe(a) pipe((a)) // 定义ccnet管道
     #define piperead(a,b,c) read((a),(b),(c)) // 定义管道读函数
@@ -336,7 +336,7 @@ socket网络编程相关。
 
 2. ### Seafile
 
-    ```c++
+    ```cpp
     #define SeafStat struct stat // 定义seafile状态结构体
     int seaf_stat (const char *path, SeafStat *st); // 根据seafile的路径获取状态
     int seaf_fstat(int fd, SeafStat *st);           // 根据seafile的文件描述符获取状态
@@ -357,7 +357,7 @@ socket网络编程相关。
 
 3. ### 字符串
 
-    ```c++
+    ```cpp
     size_t ccnet_strlcpy (char *dst, const char *src, size_t size); // 进行字符串复制
 
     void rawdata_to_hex (const unsigned char *rawdata, char *hex_str, int n_bytes); // 字符串转十六进制串
@@ -424,7 +424,7 @@ socket网络编程相关。
 
 4. ### CCNET
 
-    ```c++
+    ```cpp
     gboolean is_object_id_valid (const char *obj_id); // 判断ccent对象是否有效
 
     int checkdir (const char *dir); // 检查目录是否存在
@@ -440,14 +440,14 @@ socket网络编程相关。
 
 5. ### 时间
     
-    ```c++
+    ```cpp
     struct timeval timeval_from_msec (uint64_t milliseconds); // ms转timeval
     gint64 get_current_time(); // 获取系统时间
     ```
 
 6. ### 加密解密
 
-    ```c++
+    ```cpp
     int
     ccnet_encrypt (char **data_out,
                 int *out_len,
@@ -466,7 +466,7 @@ socket网络编程相关。
 
 7. ### 网络
 
-    ```c++
+    ```cpp
     static inline uint64_t bswap64 (uint64_t val); // 大小端互换
     static inline uint64_t hton64(uint64_t val); // 主机字节序转网络字节序
     static inline uint64_t ntoh64(uint64_t val); // 网络字节序转主机字节序
@@ -476,14 +476,14 @@ socket网络编程相关。
 
 8. ### 进程
 
-    ```c++
+    ```cpp
     gboolean process_is_running(const char *name); // 根据进程名判断进程是否正在运行
     int count_process (const char *process_name_in); // 获取某进程正在运行的实例的数目
     ```
 
 9. ### json
 
-    ```c++
+    ```cpp
     const char * json_object_get_string_member (json_t *object, const char *key); // object[key] -> str
     gboolean json_object_has_member (json_t *object, const char *key); // object[key] != null
     gint64 json_object_get_int_member (json_t *object, const char *key); // object[key] -> int
@@ -493,7 +493,7 @@ socket网络编程相关。
 
 10. ### 压缩解压缩
 
-    ```c++
+    ```cpp
     int seaf_compress (guint8 *input, int inlen, guint8 **output, int *outlen); // 压缩seafile文件数据
     int seaf_decompress (guint8 *input, int inlen, guint8 **output, int *outlen); // 解压缩seafile文件数据
     ```

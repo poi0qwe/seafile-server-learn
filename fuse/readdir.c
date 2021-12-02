@@ -1,3 +1,4 @@
+// 读目录（仅列举名称）
 #include "common.h"
 
 #define FUSE_USE_VERSION  26
@@ -28,14 +29,14 @@ static char *replace_slash (const char *repo_name)
 }
 
 static GList *get_users_from_ccnet (SearpcClient *client, const char *source)
-{
+{ // 获取所有用户
     return searpc_client_call__objlist (client,
                                         "get_emailusers", CCNET_TYPE_EMAIL_USER, NULL,
                                         3, "string", source, "int", -1, "int", -1);
 }
 
 static CcnetEmailUser *get_user_from_ccnet (SearpcClient *client, const char *user)
-{
+{ // 根据用户名获取一个用户
     return (CcnetEmailUser *)searpc_client_call__object (client,
                                        "get_emailuser", CCNET_TYPE_EMAIL_USER, NULL,
                                        1, "string", user);
@@ -44,7 +45,7 @@ static CcnetEmailUser *get_user_from_ccnet (SearpcClient *client, const char *us
 static int readdir_root(SeafileSession *seaf,
                         void *buf, fuse_fill_dir_t filler, off_t offset,
                         struct fuse_file_info *info)
-{
+{ // 读根目录
     GList *users, *p;
     CcnetEmailUser *user;
     const char *email;
@@ -89,7 +90,7 @@ static int readdir_root(SeafileSession *seaf,
 static int readdir_user(SeafileSession *seaf, const char *user,
                         void *buf, fuse_fill_dir_t filler, off_t offset,
                         struct fuse_file_info *info)
-{
+{ // 读用户目录
     CcnetEmailUser *emailuser;
     GList *list = NULL, *p;
     GString *name;
@@ -139,7 +140,7 @@ static int readdir_repo(SeafileSession *seaf,
                         const char *user, const char *repo_id, const char *repo_path,
                         void *buf, fuse_fill_dir_t filler, off_t offset,
                         struct fuse_file_info *info)
-{
+{ // 从repo中读目录
     SeafRepo *repo = NULL;
     SeafBranch *branch;
     SeafCommit *commit = NULL;
@@ -189,7 +190,7 @@ out:
 
 int do_readdir(SeafileSession *seaf, const char *path, void *buf,
                fuse_fill_dir_t filler, off_t offset,
-               struct fuse_file_info *info)
+               struct fuse_file_info *info) // 读目录
 {
     int n_parts;
     char *user, *repo_id, *repo_path;

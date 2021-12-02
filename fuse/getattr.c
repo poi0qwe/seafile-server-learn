@@ -1,3 +1,4 @@
+// 读文件系统对象状态，包括目录和文件
 #include "common.h"
 
 #define FUSE_USE_VERSION  26
@@ -16,14 +17,14 @@
 #include "seaf-utils.h"
 
 static CcnetEmailUser *get_user_from_ccnet (SearpcClient *client, const char *user)
-{
+{ // 获取用户
     return (CcnetEmailUser *)searpc_client_call__object (client,
                                        "get_emailuser", CCNET_TYPE_EMAIL_USER, NULL,
                                        1, "string", user);
 }
 
 static int getattr_root(SeafileSession *seaf, struct stat *stbuf)
-{
+{ // 根目录状态
     stbuf->st_mode = S_IFDIR | 0755;
     stbuf->st_nlink = 2;
     stbuf->st_size = 4096;
@@ -32,7 +33,7 @@ static int getattr_root(SeafileSession *seaf, struct stat *stbuf)
 }
 
 static int getattr_user(SeafileSession *seaf, const char *user, struct stat *stbuf)
-{
+{ // 用户目录状态
     CcnetEmailUser *emailuser;
 
     emailuser = ccnet_user_manager_get_emailuser (seaf->user_mgr, user);
@@ -50,7 +51,7 @@ static int getattr_user(SeafileSession *seaf, const char *user, struct stat *stb
 
 static int getattr_repo(SeafileSession *seaf,
                         const char *user, const char *repo_id, const char *repo_path,
-                        struct stat *stbuf)
+                        struct stat *stbuf) // 获取repo内文件状态
 {
     SeafRepo *repo = NULL;
     SeafBranch *branch;
@@ -148,7 +149,7 @@ out:
     return ret;
 }
 
-int do_getattr(SeafileSession *seaf, const char *path, struct stat *stbuf)
+int do_getattr(SeafileSession *seaf, const char *path, struct stat *stbuf) // 获取状态
 {
     int n_parts;
     char *user, *repo_id, *repo_path;

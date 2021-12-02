@@ -1,3 +1,4 @@
+// 读文件；只可能是仓库内的seafile
 #include "common.h"
 
 #define FUSE_USE_VERSION  26
@@ -17,7 +18,7 @@ int read_file(SeafileSession *seaf,
               const char *store_id, int version,
               Seafile *file,
               char *buf, size_t size,
-              off_t offset, struct fuse_file_info *info)
+              off_t offset, struct fuse_file_info *info) // 读文件
 {
     BlockHandle *handle = NULL;;
     BlockMetadata *bmd;

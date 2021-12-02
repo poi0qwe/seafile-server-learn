@@ -66,7 +66,7 @@ $$hash(s_{i+1\dots i+n})=((a(x)·hash(s_{i\dots i+n-1}))_{\pmod{M(x)}}-s_ia^{n}(
 
 首先选择有限域$\small GF(2)$多项式的模$p(x)$，要求是个不可约多项式。这里选取了一个$\small k=64$的多项式。
 
-```c++
+```cpp
 static u_int64_t poly = 0xbfe6b8a5bf378d83LL;
 ```
 
@@ -100,26 +100,26 @@ static u_int64_t poly = 0xbfe6b8a5bf378d83LL;
 
     其中$\small g/a=x^{shiftx-8}$，因此$p-p_{\pmod{g/a}}$就是保留$p$的高八位其余位填零；而$j$就是$p$的高八位。将各个式子改写为二进制形式，并使用位运算，则上式等价于：
 
-    ```c++
+    ```cpp
     (p^j)<<8+g*j%(xshift-8)
     ```
 
 继续改写，将$p$提出来：
 
-```c++
+```cpp
 (p<<8) ^ (g*j%(xshift-8)|j<<(xshift+8))
 ```
 
 所以预处理`g*j%(xshift-8)|j<<(xshift+8)`，就可以以$\small O(1)$计算第一部分。将前式缓存至$\small T$，并将其与第三部分结合，得到最终代码：
 
-```c++
+```cpp
 // (p * a + m) % M
 (p<<8|m)^T[p>>xshift-8]
 ```
 
 - ### 相关源码
 
-    ```c++
+    ```cpp
     int xshift, shift
     static inline char fls64(u_int64_t v); // 获取最高位的1在哪一位
     u_int64_t polymod(u_int64_t nh, u_int64_t nl, u_int64_t d); // (nh<<64|nl) % d
@@ -215,7 +215,7 @@ $$\mathit{pdf}(i)=p'(1-p')^{i-1}$$
 
 ### 实现
 
-```c++
+```cpp
 /*
     最小块长略与文件缓冲区略，主要看以下分块部分
 */ 
@@ -252,7 +252,7 @@ while (cur < tail) { // 一直扫描直到达到tail
 
 - 将块写入文件 / WriteblockFunc
 
-    ```c++
+    ```cpp
     static int default_write_chunk (CDCDescriptor *chunk_descr) // 默认写块文件的方法
     {
         char filename[NAME_MAX_SZ];
@@ -274,7 +274,7 @@ while (cur < tail) { // 一直扫描直到达到tail
 
 - 初始化
 
-    ```c++
+    ```cpp
     // 给定文件，初始化它的文件分块信息（只用到了文件大小）
     static int init_cdc_file_descriptor (int fd,
                                      uint64_t file_size,
@@ -307,7 +307,7 @@ while (cur < tail) { // 一直扫描直到达到tail
 
 - 写数据与校验和
 
-    ```c++
+    ```cpp
     // 写一个块（block_sz是块的大小，write_data表示是否写入硬盘）
     #define WRITE_CDC_BLOCK(block_sz, write_data)                \
     do {                                                         \
@@ -340,7 +340,7 @@ while (cur < tail) { // 一直扫描直到达到tail
 
 - 分块主函数
 
-    ```c++
+    ```cpp
     int file_chunk_cdc(int fd_src, // 文件标识符
                    CDCFileDescriptor *file_descr, // 文件分块信息，新建或更新
                    SeafileCrypt *crypt, // 加密信息

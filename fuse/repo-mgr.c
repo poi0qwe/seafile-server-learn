@@ -89,7 +89,7 @@ set_head_common (SeafRepo *repo, SeafBranch *branch)
 }
 
 void
-seaf_repo_from_commit (SeafRepo *repo, SeafCommit *commit)
+seaf_repo_from_commit (SeafRepo *repo, SeafCommit *commit) // 将提交信息传递到仓库信息
 {
     repo->name = g_strdup (commit->repo_name);
     repo->desc = g_strdup (commit->repo_desc);
@@ -104,7 +104,7 @@ seaf_repo_from_commit (SeafRepo *repo, SeafCommit *commit)
 }
 
 void
-seaf_repo_to_commit (SeafRepo *repo, SeafCommit *commit)
+seaf_repo_to_commit (SeafRepo *repo, SeafCommit *commit) // 将仓库信息传递到提交信息
 {
     commit->repo_name = g_strdup (repo->name);
     commit->repo_desc = g_strdup (repo->desc);
@@ -131,7 +131,7 @@ collect_commit (SeafCommit *commit, void *vlist, gboolean *stop)
 }
 
 GList *
-seaf_repo_get_commits (SeafRepo *repo)
+seaf_repo_get_commits (SeafRepo *repo) // 获取全部提交
 {
     GList *branches;
     GList *ptr;
@@ -170,7 +170,7 @@ out:
     return commits;
 }
 
-static int 
+static int // 对比仓库
 compare_repo (const SeafRepo *srepo, const SeafRepo *trepo)
 {
     return g_strcmp0 (srepo->id, trepo->id);
@@ -199,7 +199,7 @@ seaf_repo_manager_start (SeafRepoManager *mgr)
     return 0;
 }
 
-static gboolean
+static gboolean // 判断仓库是否在数据库中，并返回id
 repo_exists_in_db (SeafDB *db, const char *id)
 {
     char sql[256];
@@ -210,7 +210,7 @@ repo_exists_in_db (SeafDB *db, const char *id)
     return seaf_db_check_for_existence (db, sql, &db_err);
 }
 
-SeafRepo*
+SeafRepo* // 获取仓库
 seaf_repo_manager_get_repo (SeafRepoManager *manager, const gchar *id)
 {
     SeafRepo repo;
@@ -221,8 +221,8 @@ seaf_repo_manager_get_repo (SeafRepoManager *manager, const gchar *id)
 
     memcpy (repo.id, id, len + 1);
 
-    if (repo_exists_in_db (manager->seaf->db, id)) {
-        SeafRepo *ret = load_repo (manager, id);
+    if (repo_exists_in_db (manager->seaf->db, id)) { // 获取id
+        SeafRepo *ret = load_repo (manager, id); // 加载仓库信息
         if (!ret)
             return NULL;
         /* seaf_repo_ref (ret); */
@@ -241,7 +241,7 @@ seaf_repo_manager_repo_exists (SeafRepoManager *manager, const gchar *id)
     return repo_exists_in_db (manager->seaf->db, id);
 }
 
-static void
+static void // 加载仓库的提交
 load_repo_commit (SeafRepoManager *manager,
                   SeafRepo *repo,
                   SeafBranch *branch)
@@ -263,7 +263,7 @@ load_repo_commit (SeafRepoManager *manager,
     seaf_commit_unref (commit);
 }
 
-static gboolean
+static gboolean // 加载虚拟信息
 load_virtual_info (SeafDBRow *row, void *vrepo_id)
 {
     char *ret_repo_id = vrepo_id;
@@ -275,7 +275,7 @@ load_virtual_info (SeafDBRow *row, void *vrepo_id)
     return FALSE;
 }
 
-char *
+char * // 加载原始仓库信息
 get_origin_repo_id (SeafRepoManager *mgr, const char *repo_id)
 {
     char sql[256];
@@ -294,7 +294,7 @@ get_origin_repo_id (SeafRepoManager *mgr, const char *repo_id)
         return NULL;
 }
 
-static SeafRepo *
+static SeafRepo * // 加载仓库
 load_repo (SeafRepoManager *manager, const char *repo_id)
 {
     SeafRepo *repo;
@@ -324,9 +324,9 @@ load_repo (SeafRepoManager *manager, const char *repo_id)
     }
 
     char *origin_repo_id = get_origin_repo_id (manager, repo->id);
-    if (origin_repo_id)
+    if (origin_repo_id) // 如果存在原始仓库
         memcpy (repo->store_id, origin_repo_id, 36);
-    else
+    else // 如果不存在原始仓库
         memcpy (repo->store_id, repo->id, 36);
     g_free (origin_repo_id);
 
@@ -345,7 +345,7 @@ collect_repo_id (SeafDBRow *row, void *data)
     return TRUE;
 }
 
-GList *
+GList * // 获取仓库列表
 seaf_repo_manager_get_repo_id_list (SeafRepoManager *mgr)
 {
     GList *ret = NULL;
@@ -360,7 +360,7 @@ seaf_repo_manager_get_repo_id_list (SeafRepoManager *mgr)
     return ret;
 }
 
-GList *
+GList * // 获取仓库列表，带始末
 seaf_repo_manager_get_repo_list (SeafRepoManager *mgr, int start, int limit)
 {
     GList *id_list = NULL, *ptr;
@@ -388,7 +388,7 @@ seaf_repo_manager_get_repo_list (SeafRepoManager *mgr, int start, int limit)
     return g_list_reverse (ret);
 }
 
-GList *
+GList * // 获取用户拥有的仓库
 seaf_repo_manager_get_repos_by_owner (SeafRepoManager *mgr,
                                       const char *email)
 {
@@ -415,7 +415,7 @@ seaf_repo_manager_get_repos_by_owner (SeafRepoManager *mgr,
     return ret;
 }
 
-gboolean
+gboolean // 判断是否是虚拟仓库
 seaf_repo_manager_is_virtual_repo (SeafRepoManager *mgr, const char *repo_id)
 {
     char sql[256];
