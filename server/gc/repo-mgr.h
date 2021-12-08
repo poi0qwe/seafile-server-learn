@@ -116,20 +116,20 @@ seaf_repo_manager_get_repo_id_list (SeafRepoManager *mgr);
 int
 seaf_repo_manager_set_repo_history_limit (SeafRepoManager *mgr,
                                           const char *repo_id,
-                                          int days);
+                                          int days); // 设置最大历史保留时间（RepoHistoryLimit）
 
 int
 seaf_repo_manager_get_repo_history_limit (SeafRepoManager *mgr,
-                                          const char *repo_id);
+                                          const char *repo_id); // 获取最大历史保留时间
 
 int
 seaf_repo_manager_set_repo_valid_since (SeafRepoManager *mgr,
                                         const char *repo_id,
-                                        gint64 timestamp);
+                                        gint64 timestamp); // 设置生效日期（RepoValidSince）
 
 gint64
 seaf_repo_manager_get_repo_valid_since (SeafRepoManager *mgr,
-                                        const char *repo_id);
+                                        const char *repo_id); // 获取生效日期
 
 /*
  * Return the timestamp to stop traversing history.
@@ -139,7 +139,7 @@ seaf_repo_manager_get_repo_valid_since (SeafRepoManager *mgr,
  */
 gint64
 seaf_repo_manager_get_repo_truncate_time (SeafRepoManager *mgr,
-                                          const char *repo_id);
+                                          const char *repo_id); // 获取截止时间（days>0，现在-最大历史保留时间；days=0，生效日期；days<0，无限小）
 
 SeafVirtRepo *
 seaf_repo_manager_get_virtual_repo_info (SeafRepoManager *mgr,
@@ -150,12 +150,12 @@ seaf_virtual_repo_info_free (SeafVirtRepo *vinfo);
 
 GList *
 seaf_repo_manager_get_virtual_repo_ids_by_origin (SeafRepoManager *mgr,
-                                                  const char *origin_repo);
+                                                  const char *origin_repo); // 根据原始仓库，获取所有虚拟仓库
 
 GList *
-seaf_repo_manager_list_garbage_repos (SeafRepoManager *mgr);
+seaf_repo_manager_list_garbage_repos (SeafRepoManager *mgr); // 列出所有垃圾仓库
 
 void
-seaf_repo_manager_remove_garbage_repo (SeafRepoManager *mgr, const char *repo_id);
+seaf_repo_manager_remove_garbage_repo (SeafRepoManager *mgr, const char *repo_id); // 移除垃圾仓库
 
 #endif

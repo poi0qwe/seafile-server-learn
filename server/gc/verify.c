@@ -1,13 +1,14 @@
+// 验证仓库完整性
 #include "seafile-session.h"
 #include "log.h"
 
 typedef struct VerifyData {
-    SeafRepo *repo;
-    gint64 truncate_time;
-    gboolean traversed_head;
-} VerifyData;
+    SeafRepo *repo; // 仓库
+    gint64 truncate_time;    // 截止时间
+    gboolean traversed_head; // 是否仅检查头
+} VerifyData; // 验证数据
 
-static int
+static int // 检查块
 check_blocks (VerifyData *data, const char *file_id)
 {
     SeafRepo *repo = data->repo;
@@ -36,7 +37,7 @@ check_blocks (VerifyData *data, const char *file_id)
     return 0;
 }
 
-static gboolean
+static gboolean // 检查文件系统
 fs_callback (SeafFSManager *mgr,
              const char *store_id,
              int version,
@@ -53,7 +54,7 @@ fs_callback (SeafFSManager *mgr,
     return TRUE;
 }
 
-static gboolean
+static gboolean // 遍历提交
 traverse_commit (SeafCommit *commit, void *vdata, gboolean *stop)
 {
     VerifyData *data = vdata;
@@ -88,7 +89,7 @@ traverse_commit (SeafCommit *commit, void *vdata, gboolean *stop)
     return TRUE;
 }
 
-static int
+static int // 验证仓库
 verify_repo (SeafRepo *repo)
 {
     GList *branches, *ptr;
@@ -127,7 +128,7 @@ verify_repo (SeafRepo *repo)
 }
 
 int
-verify_repos (GList *repo_id_list)
+verify_repos (GList *repo_id_list) // 验证仓库列表下的所有仓库
 {
     if (repo_id_list == NULL)
         repo_id_list = seaf_repo_manager_get_repo_id_list (seaf->repo_mgr);

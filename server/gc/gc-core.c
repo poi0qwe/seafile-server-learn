@@ -36,7 +36,7 @@ static guint64 reachable_blocks;
  * So we set the minimal size of the bf to 1KB.
  */
 static Bloom *
-alloc_gc_index ()
+alloc_gc_index () // 申请垃圾回收索引，是一个布隆过滤器
 {
     size_t size;
 
@@ -49,25 +49,25 @@ alloc_gc_index ()
 }
 
 typedef struct {
-    SeafRepo *repo;
-    Bloom *index;
-    GHashTable *visited;
+    SeafRepo *repo; // 仓库
+    Bloom *index; // 索引
+    GHashTable *visited; // 访问表
 
     /* > 0: keep a period of history;
      * == 0: only keep data in head commit;
      * < 0: keep all history data.
      */
-    gint64 truncate_time;
-    gboolean traversed_head;
+    gint64 truncate_time; // 截止时间
+    gboolean traversed_head; // 遍历头
 
-    int traversed_commits;
-    gint64 traversed_blocks;
+    int traversed_commits; // 遍历提交数
+    gint64 traversed_blocks; // 遍历块数
 
-    int verbose;
-    gint64 traversed_fs_objs;
-} GCData;
+    int verbose; // 输出
+    gint64 traversed_fs_objs; // 遍历对象数
+} GCData; // 垃圾回收数据
 
-static int
+static int // 将块加入到索引中
 add_blocks_to_index (SeafFSManager *mgr, GCData *data, const char *file_id)
 {
     SeafRepo *repo = data->repo;
@@ -82,7 +82,7 @@ add_blocks_to_index (SeafFSManager *mgr, GCData *data, const char *file_id)
     }
 
     for (i = 0; i < seafile->n_blocks; ++i) {
-        bloom_add (index, seafile->blk_sha1s[i]);
+        bloom_add (index, seafile->blk_sha1s[i]); // 以块名（SHA1摘要）索引
         ++data->traversed_blocks;
     }
 
@@ -98,43 +98,43 @@ fs_callback (SeafFSManager *mgr,
              const char *obj_id,
              int type,
              void *user_data,
-             gboolean *stop)
+             gboolean *stop) // 文件系统对象回调
 {
     GCData *data = user_data;
 
     if (data->visited != NULL) {
-        if (g_hash_table_lookup (data->visited, obj_id) != NULL) {
+        if (g_hash_table_lookup (data->visited, obj_id) != NULL) { // 查找哈希表中是否存在，存在则返回真，表明子对象都已遍历
             *stop = TRUE;
             return TRUE;
         }
 
         char *key = g_strdup(obj_id);
-        g_hash_table_replace (data->visited, key, key);
+        g_hash_table_replace (data->visited, key, key); // 否则加入哈希表
     }
 
     ++(data->traversed_fs_objs);
 
     if (type == SEAF_METADATA_TYPE_FILE &&
-        add_blocks_to_index (mgr, data, obj_id) < 0)
+        add_blocks_to_index (mgr, data, obj_id) < 0) // 将对应的块加入索引
         return FALSE;
 
     return TRUE;
 }
 
 static gboolean
-traverse_commit (SeafCommit *commit, void *vdata, gboolean *stop)
+traverse_commit (SeafCommit *commit, void *vdata, gboolean *stop) // 遍历一个提交
 {
     GCData *data = vdata;
     int ret;
 
-    if (data->truncate_time == 0)
+    if (data->truncate_time == 0) // 只遍历头
     {
         *stop = TRUE;
         /* Stop after traversing the head commit. */
     }
     else if (data->truncate_time > 0 &&
              (gint64)(commit->ctime) < data->truncate_time &&
-             data->traversed_head)
+             data->traversed_head) // 如果是第一个早于截至时间的提交，且处理过了相应的头分支
     {
         /* Still traverse the first commit older than truncate_time.
          * If a file in the child commit of this commit is deleted,
@@ -147,7 +147,7 @@ traverse_commit (SeafCommit *commit, void *vdata, gboolean *stop)
     if (!data->traversed_head)
         data->traversed_head = TRUE;
 
-    if (data->verbose)
+    if (data->verbose) // 是否输出
         seaf_message ("Traversing commit %.8s.\n", commit->commit_id);
 
     ++data->traversed_commits;
@@ -158,7 +158,7 @@ traverse_commit (SeafCommit *commit, void *vdata, gboolean *stop)
                                          data->repo->store_id, data->repo->version,
                                          commit->root_id,
                                          fs_callback,
-                                         data, FALSE);
+                                         data, FALSE); // 遍历文件树，对文件系统对象回调
     if (ret < 0)
         return FALSE;
 
@@ -170,7 +170,7 @@ traverse_commit (SeafCommit *commit, void *vdata, gboolean *stop)
 }
 
 static int
-populate_gc_index_for_repo (SeafRepo *repo, Bloom *index, int verbose)
+populate_gc_index_for_repo (SeafRepo *repo, Bloom *index, int verbose) // 统计仓库垃圾回收索引
 {
     GList *branches, *ptr;
     SeafBranch *branch;
@@ -214,7 +214,7 @@ populate_gc_index_for_repo (SeafRepo *repo, Bloom *index, int verbose)
 
     data->truncate_time = truncate_time;
 
-    for (ptr = branches; ptr != NULL; ptr = ptr->next) {
+    for (ptr = branches; ptr != NULL; ptr = ptr->next) { // 遍历每个分支
         branch = ptr->data;
         gboolean res = seaf_commit_manager_traverse_commit_tree (seaf->commit_mgr,
                                                                  repo->id,
@@ -222,7 +222,7 @@ populate_gc_index_for_repo (SeafRepo *repo, Bloom *index, int verbose)
                                                                  branch->commit_id,
                                                                  traverse_commit,
                                                                  data,
-                                                                 FALSE);
+                                                                 FALSE); // 遍历提交树
         seaf_branch_unref (branch);
         if (!res) {
             ret = -1;
@@ -244,16 +244,16 @@ populate_gc_index_for_repo (SeafRepo *repo, Bloom *index, int verbose)
 typedef struct {
     Bloom *index;
     int dry_run;
-} CheckBlocksData;
+} CheckBlocksData; // 检查块数据
 
 static gboolean
 check_block_liveness (const char *store_id, int version,
-                      const char *block_id, void *vdata)
+                      const char *block_id, void *vdata) // 判断块是否活跃
 {
     CheckBlocksData *data = vdata;
     Bloom *index = data->index;
 
-    if (!bloom_test (index, block_id)) {
+    if (!bloom_test (index, block_id)) { // 不活跃
         ++removed_blocks;
         if (!data->dry_run)
             seaf_block_manager_remove_block (seaf->block_mgr,
@@ -264,7 +264,7 @@ check_block_liveness (const char *store_id, int version,
     return TRUE;
 }
 
-static int
+static int // 统计虚拟仓库垃圾回收索引
 populate_gc_index_for_virtual_repos (SeafRepo *repo, Bloom *index, int verbose)
 {
     GList *vrepo_ids = NULL, *ptr;
@@ -294,8 +294,8 @@ out:
     return ret;
 }
 
-int
-gc_v1_repo (SeafRepo *repo, int dry_run, int verbose)
+int // 对版本1的仓库垃圾回收
+gc_v1_repo (SeafRepo *repo, int dry_run, int verbose) // dry_run表示是否真的进行垃圾回收，verbose表示是否输出
 {
     Bloom *index;
     int ret;
@@ -326,14 +326,14 @@ gc_v1_repo (SeafRepo *repo, int dry_run, int verbose)
 
     seaf_message ("Populating index.\n");
 
-    ret = populate_gc_index_for_repo (repo, index, verbose);
+    ret = populate_gc_index_for_repo (repo, index, verbose); // 仓库进行统计垃圾回收
     if (ret < 0)
         goto out;
 
     /* Since virtual repos share fs and block store with the origin repo,
      * it's necessary to do GC for them together.
      */
-    ret = populate_gc_index_for_virtual_repos (repo, index, verbose);
+    ret = populate_gc_index_for_virtual_repos (repo, index, verbose); // 虚拟仓库进行统计垃圾回收
     if (ret < 0)
         goto out;
 
@@ -349,7 +349,7 @@ gc_v1_repo (SeafRepo *repo, int dry_run, int verbose)
     ret = seaf_block_manager_foreach_block (seaf->block_mgr,
                                             repo->store_id, repo->version,
                                             check_block_liveness,
-                                            &data);
+                                            &data); // 检查块是否活跃
     if (ret < 0) {
         seaf_warning ("GC: Failed to clean dead blocks.\n");
         goto out;
@@ -375,7 +375,7 @@ out:
     return ret;
 }
 
-void
+void // 删除垃圾仓库
 delete_garbaged_repos (int dry_run)
 {
     GList *del_repos = NULL;
@@ -383,7 +383,7 @@ delete_garbaged_repos (int dry_run)
 
     seaf_message ("=== Repos deleted by users ===\n");
     del_repos = seaf_repo_manager_list_garbage_repos (seaf->repo_mgr);
-    for (ptr = del_repos; ptr; ptr = ptr->next) {
+    for (ptr = del_repos; ptr; ptr = ptr->next) { // 遍历所有垃圾仓库
         char *repo_id = ptr->data;
 
         /* Confirm repo doesn't exist before removing blocks. */
@@ -405,13 +405,13 @@ delete_garbaged_repos (int dry_run)
     g_list_free (del_repos);
 }
 
-int
+int // 运行垃圾回收
 gc_core_run (GList *repo_id_list, int dry_run, int verbose)
 {
     GList *ptr;
     SeafRepo *repo;
-    GList *corrupt_repos = NULL;
-    GList *del_block_repos = NULL;
+    GList *corrupt_repos = NULL; // 被污染的仓库（已损坏）
+    GList *del_block_repos = NULL; // 删除块的仓库
     gboolean del_garbage = FALSE;
     int gc_ret;
     char *repo_id;
@@ -421,7 +421,7 @@ gc_core_run (GList *repo_id_list, int dry_run, int verbose)
         del_garbage = TRUE;
     }
 
-    for (ptr = repo_id_list; ptr; ptr = ptr->next) {
+    for (ptr = repo_id_list; ptr; ptr = ptr->next) { // 遍历各个仓库
         repo = seaf_repo_manager_get_repo_ex (seaf->repo_mgr, (const gchar *)ptr->data);
 
         g_free (ptr->data);

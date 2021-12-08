@@ -32,7 +32,7 @@ fsck_verify_seafobj (const char *store_id,
                      const char *obj_id,
                      gboolean *io_error,
                      VerifyType type,
-                     gboolean repair)
+                     gboolean repair) // 验证seafobj
 {
     gboolean valid = TRUE;
 
@@ -67,7 +67,7 @@ fsck_verify_seafobj (const char *store_id,
 }
 
 static int
-check_blocks (const char *file_id, FsckData *fsck_data, gboolean *io_error)
+check_blocks (const char *file_id, FsckData *fsck_data, gboolean *io_error) // 检查块
 {
     Seafile *seafile;
     int i;
@@ -130,7 +130,7 @@ check_blocks (const char *file_id, FsckData *fsck_data, gboolean *io_error)
 }
 
 static char*
-fsck_check_dir_recursive (const char *id, const char *parent_dir, FsckData *fsck_data)
+fsck_check_dir_recursive (const char *id, const char *parent_dir, FsckData *fsck_data) // 递归检查目录
 {
     SeafDir *dir;
     SeafDir *new_dir;
@@ -284,7 +284,7 @@ collect_token_list (SeafDBRow *row, void *data)
 }
 
 int
-delete_repo_tokens (SeafRepo *repo)
+delete_repo_tokens (SeafRepo *repo) // 删除用户令牌
 {
     int ret = 0;
     const char *template;
@@ -343,7 +343,7 @@ out:
 }
 
 static char *
-gen_repair_commit_desc (GList *repaired_files, GList *repaired_folders)
+gen_repair_commit_desc (GList *repaired_files, GList *repaired_folders) // 生成修复提交
 {
     GString *desc = g_string_new("Repaired by system.");
     GList *p;
@@ -373,7 +373,7 @@ gen_repair_commit_desc (GList *repaired_files, GList *repaired_folders)
 
 static void
 reset_commit_to_repair (SeafRepo *repo, SeafCommit *parent, char *new_root_id,
-                        GList *repaired_files, GList *repaired_folders)
+                        GList *repaired_files, GList *repaired_folders) // 将提交重置为修复
 {
     if (delete_repo_tokens (repo) < 0) {
         seaf_warning ("Failed to delete repo sync tokens, abort repair.\n");
@@ -412,7 +412,7 @@ reset_commit_to_repair (SeafRepo *repo, SeafCommit *parent, char *new_root_id,
  * check and recover repo, for damaged file or folder set it empty
  */
 static void
-check_and_recover_repo (SeafRepo *repo, gboolean reset, gboolean repair)
+check_and_recover_repo (SeafRepo *repo, gboolean reset, gboolean repair) // 检查并修复
 {
     FsckData fsck_data;
     SeafCommit *rep_commit = NULL;
@@ -463,7 +463,7 @@ out:
 }
 
 static gint
-compare_commit_by_ctime (gconstpointer a, gconstpointer b)
+compare_commit_by_ctime (gconstpointer a, gconstpointer b) // 检查提交时间
 {
     const SeafCommit *commit_a = a;
     const SeafCommit *commit_b = b;
@@ -473,7 +473,7 @@ compare_commit_by_ctime (gconstpointer a, gconstpointer b)
 
 static gboolean
 fsck_get_repo_commit (const char *repo_id, int version,
-                      const char *obj_id, void *commit_list)
+                      const char *obj_id, void *commit_list) // 获取一个提交
 {
     void *data = NULL;
     int data_len;
@@ -494,7 +494,7 @@ fsck_get_repo_commit (const char *repo_id, int version,
 }
 
 static SeafRepo*
-get_available_repo (char *repo_id, gboolean repair)
+get_available_repo (char *repo_id, gboolean repair) // 判断仓库有效性
 {
     GList *commit_list = NULL;
     GList *temp_list = NULL;
@@ -586,7 +586,7 @@ out:
 }
 
 static void
-repair_repo(char *repo_id, gboolean repair)
+repair_repo(char *repo_id, gboolean repair) // 修复仓库
 {
     gboolean exists;
     gboolean reset = FALSE;
@@ -661,7 +661,7 @@ next:
 }
 
 static void
-repair_repo_with_thread_pool(gpointer data, gpointer user_data)
+repair_repo_with_thread_pool(gpointer data, gpointer user_data) // 通过线程池
 {
     CheckAndRecoverRepoObj *obj = data;
 
@@ -671,7 +671,7 @@ repair_repo_with_thread_pool(gpointer data, gpointer user_data)
 }
 
 static void
-repair_repos (GList *repo_id_list, gboolean repair, int max_thread_num)
+repair_repos (GList *repo_id_list, gboolean repair, int max_thread_num) // 修复仓库，提供仓库列表
 {
     GList *ptr;
     char *repo_id;
@@ -705,7 +705,7 @@ repair_repos (GList *repo_id_list, gboolean repair, int max_thread_num)
 }
 
 int
-seaf_fsck (GList *repo_id_list, gboolean repair, int max_thread_num)
+seaf_fsck (GList *repo_id_list, gboolean repair, int max_thread_num) // fsck封装
 {
     if (!repo_id_list)
         repo_id_list = seaf_repo_manager_get_repo_id_list (seaf->repo_mgr);
@@ -841,7 +841,7 @@ write_nonenc_block_to_file (const char *repo_id,
                             const char *block_id,
                             const gint64 mtime,
                             int fd,
-                            const char *path)
+                            const char *path) // 将非加密块写为文件
 {
     BlockHandle *handle;
     char buf[64 * 1024];
@@ -892,7 +892,7 @@ static void
 create_file (const char *repo_id,
              const char *file_id,
              const gint64 mtime,
-             const char *path)
+             const char *path) // 创建文件
 {
     int i;
     char *block_id;
@@ -941,7 +941,7 @@ static void
 export_repo_files_recursive (const char *repo_id,
                              const char *id,
                              const char *parent_dir)
-{
+{ // 递归导出文件
     SeafDir *dir;
     GList *p;
     SeafDirent *seaf_dent;
@@ -980,7 +980,7 @@ export_repo_files_recursive (const char *repo_id,
     seaf_dir_free (dir);
 }
 
-static SeafCommit*
+static SeafCommit* // 获取有效提交
 get_available_commit (const char *repo_id)
 {
     GList *commit_list = NULL;
@@ -1048,7 +1048,7 @@ get_available_commit (const char *repo_id)
     return temp_commit;
 }
 
-void
+void // 导出仓库文件
 export_repo_files (const char *repo_id,
                    const char *init_path,
                    GHashTable *enc_repos)
@@ -1088,7 +1088,7 @@ export_repo_files (const char *repo_id,
     seaf_commit_unref (commit);
 }
 
-static GList *
+static GList * // 获取仓库id表
 get_repo_ids (const char *seafile_dir)
 {
     GList *repo_ids = NULL;
@@ -1116,13 +1116,13 @@ get_repo_ids (const char *seafile_dir)
     return repo_ids;
 }
 
-static void
+static void // 输出加密仓库
 print_enc_repo (gpointer key, gpointer value, gpointer user_data)
 {
     seaf_message ("%s(%s)\n", (char *)key, (char *)value);
 }
 
-void
+void // 导出文件
 export_file (GList *repo_id_list, const char *seafile_dir, char *export_path)
 {
     struct stat dir_st;

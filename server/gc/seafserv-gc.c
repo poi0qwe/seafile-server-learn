@@ -1,3 +1,4 @@
+// 垃圾回收服务（一个命令行子进程）
 #include "common.h"
 #include "log.h"
 
