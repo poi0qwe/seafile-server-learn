@@ -115,7 +115,7 @@ void delete_garbaged_repos (int dry_run); // 移除垃圾仓库
 3. 验证提交和分支的存在性
 4. 验证仓库的存在性
 
-### Seafile-GC服务
+## Seafile-GC服务
 
 一个命令行子进程，是对上述几个功能的总封装，构建一个可用的gc服务。代码详见：[seafserv-gc.c](https://github.com/poi0qwe/seafile-server-learn/blob/main/server/gc/seafserv-gc.c)。
 

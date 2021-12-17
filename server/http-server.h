@@ -12,16 +12,16 @@ struct _HttpServerStruct {
 
     struct _HttpServer *priv;
 
-    char *bind_addr;
-    int bind_port;
-    char *http_temp_dir;        /* temp dir for file upload */
-    char *windows_encoding;
-    gint64 fixed_block_size;
-    int web_token_expire_time;
-    int max_indexing_threads;
-    int worker_threads;
-    int max_index_processing_threads;
-    int cluster_shared_temp_file_mode;
+    char *bind_addr; // 绑定地址
+    int bind_port; // 绑定端口
+    char *http_temp_dir;        /* temp dir for file upload */ // 临时目录
+    char *windows_encoding; // ZIP编码
+    gint64 fixed_block_size; // 分块大小，默认8MB
+    int web_token_expire_time; // 令牌过期时间
+    int max_indexing_threads; // 最大索引线程数
+    int worker_threads; // 工作线程数
+    int max_index_processing_threads; // 最大索引处理线程数
+    int cluster_shared_temp_file_mode; // 集群共享临时文件模式
 };
 
 typedef struct _HttpServerStruct HttpServerStruct;
