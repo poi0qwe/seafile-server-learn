@@ -1,4 +1,4 @@
-/* 集群管理 */
+/* 组织管理 */
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
 #include "common.h"

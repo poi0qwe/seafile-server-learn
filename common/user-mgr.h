@@ -138,7 +138,7 @@ ccnet_user_manager_get_superusers(CcnetUserManager *manager); // 获取超级用
 
 int
 ccnet_user_manager_add_binding (CcnetUserManager *manager, const char *email,
-                                const char *peer_id); // 绑定peer用户到email用户
+                                const char *peer_id); // 绑定对等体id到email用户
 
 /* Remove all bindings to an email */
 int
@@ -151,10 +151,10 @@ ccnet_user_manager_remove_one_binding (CcnetUserManager *manager,
                                        const char *peer_id); // 解除一个绑定
 
 char *
-ccnet_user_manager_get_binding_email (CcnetUserManager *manager, const char *peer_id); // 获取所有绑定用户
+ccnet_user_manager_get_binding_email (CcnetUserManager *manager, const char *peer_id); // 获取所有绑定对等体id
 
 GList *
-ccnet_user_manager_get_binding_peerids (CcnetUserManager *manager, const char *email); // 获取所有绑定用户的id
+ccnet_user_manager_get_binding_peerids (CcnetUserManager *manager, const char *email); // 获取所有绑定的对等体id
 
 int
 ccnet_user_manager_set_reference_id (CcnetUserManager *manager,

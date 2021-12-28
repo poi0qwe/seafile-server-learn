@@ -82,7 +82,7 @@ RPC中提供了两百多种服务，主要涉及如下数个方面：
 16. 配置管理
 17. 用户管理
 18. 组管理
-19. 集群管理
+19. 用户与用户组管理
 
 这些服务既涵盖了common下的子系统中的基本操作，也有server-core下实现的更高级的操作。
 
@@ -371,7 +371,7 @@ struct _HttpServerStruct {
     int max_indexing_threads;           // 最大索引线程数
     int worker_threads;                 // 工作线程数
     int max_index_processing_threads;   // 最大索引处理线程数
-    int cluster_shared_temp_file_mode;  // 集群共享临时文件模式
+    int cluster_shared_temp_file_mode;  // 用户与用户组共享临时文件模式
 };
 ```
 
@@ -458,7 +458,7 @@ Http服务器存在一个主要的问题，就是高并发。已知在libevthp�
 
 4. 转发任务：消息队列
 
-    （以下内容为推测，因为存在这样的特殊使用，但相关具体代码没有开源）
+    （以下内容为推测，因为存在这样的特殊使用，但相关具体代码没有开源；或者说在社区版中没有用到此技术）
 
     有些服务与SeafileServer的RPC服务相重叠，为了避免耦合，所以转发至RPC服务。显然并发环境下不能直接转发，所以需要使用消息队列。
 

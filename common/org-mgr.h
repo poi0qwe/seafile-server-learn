@@ -1,4 +1,4 @@
-/* 集群管理 */
+/* 组织管理 */
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 
 #ifndef _ORG_MGR_H_
